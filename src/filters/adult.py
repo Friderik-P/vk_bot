@@ -89,11 +89,22 @@ def is_adult_content(text: str) -> bool:
                 logger.debug("18+ фильтр сработал (слово): «%s»", token)
                 return True
 
+        compact_text = check_text.replace(" ", "")
+        if compact_text and compact_text in ADULT_KEYWORDS:
+            logger.debug("18+ фильтр сработал (слово без пробелов): «%s»", compact_text)
+            return True
+
         # 4. Префиксные совпадения
         for token in tokens:
             for prefix in _ADULT_PREFIXES:
                 if token.startswith(prefix):
                     logger.debug("18+ фильтр сработал (префикс): «%s» в «%s»", prefix, token)
+                    return True
+
+        if compact_text:
+            for prefix in _ADULT_PREFIXES:
+                if compact_text.startswith(prefix):
+                    logger.debug("18+ фильтр сработал (префикс без пробелов): «%s» в «%s»", prefix, compact_text)
                     return True
 
     return False

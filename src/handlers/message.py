@@ -255,7 +255,16 @@ def handle_message(server: "Bot", event: Any) -> bool:
         server.send_message(peer_id, response, keyboard=keyboard)
         return True
 
-    # 5. Фильтр 18+ — до запроса к LLM
+    # 5. Защита от переназначения имён (атака "кто создал <новое_имя>?")
+    if _check_name_reassignment_attack(from_id, text):
+        server.send_message(
+            peer_id,
+            NOT_UNDERSTOOD_RESPONSE.format(text=text),
+            keyboard=keyboard,
+        )
+        return True
+
+    # 6. Фильтр 18+ — до запроса к LLM
     if is_adult_content(text):
         banned = record_adult_violation(from_id)
         if banned:
