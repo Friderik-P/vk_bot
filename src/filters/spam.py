@@ -48,3 +48,6 @@ def analyze_message_for_spam(text: Optional[str]) -> Tuple[bool, Optional[str]]:
         return True, "emoji_spam"
 
     return False, None
+
+
+__all__ = ["analyze_message_for_spam"]
