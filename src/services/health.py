@@ -12,6 +12,7 @@ from typing import Optional, Tuple, Callable, List
 import httpx
 
 from ..prompts import MODEL
+from ..utils.notify import notify_admins
 
 logger = logging.getLogger(__name__)
 
@@ -85,11 +86,11 @@ def run_health_check(
         if is_ok:
             if _last_status == "down":
                 logger.info("[Health] GigaChat снова доступен! Восстановлено в %s", time_str)
-                _notify_admins(
+                notify_admins(
                     vk_api,
                     admin_ids,
-                    send_func,
                     f"✅ GigaChat снова доступен!\nВосстановлено в {time_str}",
+                    send_func=send_func,
                 )
             _last_status = "ok"
             _last_error_msg = None
@@ -97,14 +98,14 @@ def run_health_check(
         else:
             if _last_status != "down":
                 logger.error("[Health] GigaChat недоступен: %s", error_msg or "Неизвестная ошибка")
-                _notify_admins(
+                notify_admins(
                     vk_api,
                     admin_ids,
-                    send_func,
                     (
                         f"⚠️ GigaChat недоступен с {time_str}\n"
                         f"Ошибка: {error_msg or 'Неизвестная ошибка'}"
                     ),
+                    send_func=send_func,
                 )
             else:
                 logger.debug(
@@ -134,42 +135,4 @@ def check_gigachat_manual(chat_client) -> str:
         )
 
 
-def _notify_admins(
-    vk_api,
-    admin_ids: List[int],
-    send_func: Optional[Callable[[int, str], None]],
-    message: str,
-) -> None:
-    """Отправляет сообщение всем администраторам."""
-    from vk_api.utils import get_random_id
-    from vk_api.exceptions import ApiError
-
-    if not admin_ids:
-        logger.warning("[Health] Список admin_ids пуст — уведомления не будут отправлены.")
-        return
-
-    for admin_id in admin_ids:
-        try:
-            if send_func is not None and callable(send_func):
-                send_func(admin_id, message)
-            else:
-                vk_api.messages.send(
-                    peer_id=admin_id,
-                    message=message,
-                    random_id=get_random_id(),
-                )
-        except ApiError as e:
-            if e.code == 901:
-                logger.info(
-                    "[Health] Админ %d не принимает сообщения от группы — пропускаем.",
-                    admin_id,
-                )
-            else:
-                logger.error(
-                    "[Health] VK API ошибка при уведомлении админа %d: [%s] %s",
-                    admin_id, e.code, e,
-                )
-        except Exception as e:
-            logger.exception(
-                "[Health] Не удалось уведомить админа %d: %s", admin_id, e
-            )
+__all__ = ["run_health_check", "check_gigachat_manual"]

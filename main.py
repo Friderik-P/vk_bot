@@ -1,14 +1,21 @@
 import signal
 import sys
+import os
 import logging
+import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
+from src.config import Settings
 
 logger = logging.getLogger(__name__)
 _shutdown_called = False
+_shutdown_event = threading.Event()
 
 
 def setup_logging():
@@ -83,13 +90,14 @@ def _cleanup():
 
 def _shutdown(signum=None, frame=None):
     """
-    Обработчик сигналов завершения — чистый выход без traceback.
-    Защита от повторного вызова через _shutdown_called.
+    Обработчик сигналов завершения — устанавливает флаг и логирует.
+    Не вызывает sys.exit(), чтобы finally в main() гарантированно выполнился.
     """
     global _shutdown_called
     if _shutdown_called:
         return
     _shutdown_called = True
+    _shutdown_event.set()
 
     if signum is not None:
         try:
@@ -98,43 +106,48 @@ def _shutdown(signum=None, frame=None):
             sig_name = f"сигнал {signum}"
         logger.info("Получен сигнал %s. Останавливаюсь... Мяу 🐱", sig_name)
 
-    _cleanup()
-    sys.exit(0)
-
 
 def main():
-    BASE_DIR = Path(__file__).resolve().parent
-    load_dotenv(BASE_DIR / ".env")
-
     setup_logging()
+    settings = Settings.load()
 
     try:
-        from src.config import VK_API_TOKEN, VK_GROUP_ID, LOG_DIR, DB_FILE, SERVER_NAME
         from src.server import Server
         from src.db import init_db
 
-        setup_file_logging(LOG_DIR)
+        setup_file_logging(settings.log_dir)
 
-        logger.info("Инициализация базы данных (%s)...", DB_FILE)
+        logger.info("Инициализация базы данных (%s)...", settings.db_file)
         init_db()
+
+        from src.admins import init_admins_yaml
+        init_admins_yaml()
 
         signal.signal(signal.SIGINT, _shutdown)
         signal.signal(signal.SIGTERM, _shutdown)
 
         logger.info("Запуск VK-бота (Server)...")
-        bot = Server(VK_API_TOKEN, VK_GROUP_ID, server_name=SERVER_NAME)
+        bot = Server(
+            settings.vk_api_token,
+            settings.vk_group_id,
+            server_name=settings.server_name,
+            shutdown_event=_shutdown_event,
+        )
         bot.start()
+
+        if getattr(bot, "_restart_requested", False):
+            logger.info("Перезапуск бота...")
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
 
         logger.info("Бот завершил работу. Мяу! 🐱")
     except RuntimeError as e:
         logger.critical("Ошибка конфигурации: %s", e, exc_info=True)
-        _cleanup()
         sys.exit(1)
     except SystemExit:
         raise
     except Exception as e:
         logger.critical("Непредвиденная ошибка при старте: %s", e, exc_info=True)
-        _cleanup()
         sys.exit(1)
     finally:
         _cleanup()

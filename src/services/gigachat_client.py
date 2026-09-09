@@ -11,7 +11,8 @@ max_retries=1 — для чата (используется в chat.py).
 
 import logging
 
-from ..config import GIGACHAT_AUTH_KEY, GIGACHAT_TIMEOUT_SECONDS
+from ..config import settings
+from ..constants import GIGACHAT_API_PERS
 
 logger = logging.getLogger(__name__)
 
@@ -28,25 +29,28 @@ def get_client(max_retries: int = 1) -> GigaChat | None:
 
     :param max_retries: число повторных попыток (0 — health-check, 1 — чат)
     """
-    if not GIGACHAT_AUTH_KEY:
+    if not settings.gigachat_auth_key:
         logger.warning("GIGACHAT_AUTH_KEY не задан — GigaChat отключён.")
         return None
 
     try:
         client = GigaChat(
-            credentials=GIGACHAT_AUTH_KEY,
-            scope="GIGACHAT_API_PERS",
+            credentials=settings.gigachat_auth_key,
+            scope=GIGACHAT_API_PERS,
             verify_ssl_certs=False,
-            timeout=GIGACHAT_TIMEOUT_SECONDS,
+            timeout=settings.gigachat_timeout_seconds,
             max_retries=max_retries,
         )
         logger.info(
             "Клиент GigaChat инициализирован "
             "(timeout=%d сек, retries=%d).",
-            GIGACHAT_TIMEOUT_SECONDS,
+            settings.gigachat_timeout_seconds,
             max_retries,
         )
         return client
     except Exception as e:
         logger.error("Ошибка инициализации клиента GigaChat: %s", e)
         return None
+
+
+__all__ = ["get_client"]

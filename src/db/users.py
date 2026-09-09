@@ -110,3 +110,6 @@ def get_blocked_ids() -> set[int]:
     except Exception as e:
         logger.exception("Ошибка чтения игнор-листа: %s", e)
         return set()
+
+
+__all__ = ["load_peer_ids", "add_peer_id", "mark_user_blocked", "get_blocked_ids"]

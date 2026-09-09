@@ -3,23 +3,36 @@
 
 import random
 import logging
+import threading
+import time
+from typing import TYPE_CHECKING
 
 from ..keyboards import get_main_menu_keyboard
 from ..chat import get_chat_response, clear_history
-from ..config import GIGACHAT_AUTH_KEY, MAX_MESSAGE_LENGTH
+from ..config import settings
+from ..prompts import (
+    MEOW_RESPONSE,
+    HELP_RESPONSE,
+    CONTACTS_RESPONSE,
+    RESET_RESPONSE,
+    TOO_LONG_RESPONSE,
+    NO_GIGACHAT_RESPONSE,
+    FALLBACK_RESPONSE,
+    NO_ANSWER_RESPONSE,
+    SPAM_RESPONSE,
+    RATE_LIMIT_RESPONSE,
+    NOT_UNDERSTOOD_RESPONSE,
+    ADULT_BAN_RESPONSE,
+    SIMPLE_RESPONSES,
+)
 from ..filters import is_adult_content, ADULT_RESPONSES, is_context_blocked, CONTEXT_RESPONSES
 from ..db import is_adult_banned, record_adult_violation, increment_stats
 from .utils import normalize_text_for_triggers
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from ..server import Bot
 
-SIMPLE_RESPONSES = [
-    "Мяу! Расскажи ещё 🐱",
-    "Интересно… продолжай! 🐾",
-    "Я тут, слушаю тебя!",
-    "Хм, любопытно! Что дальше?",
-    "Пиши ещё, мне интересно! 🐱",
-]
+logger = logging.getLogger(__name__)
 
 SIMPLE_TRIGGERS = {
     "привет", "хай", "здравствуй", "ку", "йо",
@@ -33,7 +46,134 @@ def _is_simple_trigger(text: str) -> bool:
     return normalized in SIMPLE_TRIGGERS
 
 
-def handle_message(server, event) -> bool:
+# Защита от переназначения имён: пользователь, давший боту новое имя,
+# не может спрашивать "кто создал <новое_имя>?" в течение 5 минут.
+_NAME_REASSIGNMENT_WINDOW_SECONDS = 300
+_name_reassignment_tracker: dict[int, tuple[str, float]] = {}
+_name_reassignment_lock = threading.Lock()
+
+
+def _is_name_reassignment(text: str) -> tuple[bool, str | None]:
+    """
+    Определяет, пытается ли пользователь переназначить имя бота.
+    Возвращает (True, new_name) или (False, None).
+    """
+    text_lower = text.lower()
+    patterns = (
+        "зови тебя",
+        "зови вас",
+        "твоё имя",
+        "ваше имя",
+        "твое имя",
+        "ваше имя",
+        "тебя зови",
+        "вас зови",
+        "зовут тебя",
+        "зовут вас",
+        "имя тебе",
+        "имя вам",
+        "назови себя",
+        "назовитесь",
+        "представься",
+        "представьтесь",
+        "твоё новое имя",
+        "твое новое имя",
+        "новое имя",
+    )
+    for pattern in patterns:
+        if pattern in text_lower:
+            # Пытаемся извлечь новое имя после паттерна
+            idx = text_lower.find(pattern)
+            after = text_lower[idx + len(pattern):].strip()
+            # Берём первые 1-3 слова как потенциальное имя
+            words = after.split()[:3]
+            candidate = " ".join(words).strip("!?.,\"'«»")
+            if candidate and len(candidate) > 1:
+                return True, candidate
+    return False, None
+
+
+def _check_name_reassignment_attack(from_id: int, text: str) -> bool:
+    """
+    Проверяет, является ли сообщение атакой через переназначение имени.
+    Возвращает True, если атака обнаружена и сообщение должно быть заблокировано.
+    """
+    is_reassign, new_name = _is_name_reassignment(text)
+    if not is_reassign:
+        # Проверяем, не пытается ли пользователь использовать ранее заданное имя
+        # для обхода фильтра "кто создал <имя>?"
+        with _name_reassignment_lock:
+            if from_id in _name_reassignment_tracker:
+                old_name, ts = _name_reassignment_tracker[from_id]
+                if time.time() - ts > _NAME_REASSIGNMENT_WINDOW_SECONDS:
+                    del _name_reassignment_tracker[from_id]
+                else:
+                    text_lower = text.lower()
+                    creator_patterns = (
+                        "кто создал",
+                        "кто разработал",
+                        "кто сделал",
+                        "кто написал",
+                        "кто автор",
+                        "кто хозяин",
+                        "кто владелец",
+                        "кто заказал",
+                        "кто купил",
+                        "кто воспитал",
+                        "кто папа",
+                        "кто отец",
+                        "кто мама",
+                        "кто мать",
+                        "кто родители",
+                        "кто админ",
+                        "кто начальник",
+                    )
+                    for pattern in creator_patterns:
+                        if pattern in text_lower:
+                            if old_name in text_lower or old_name.lower() in text_lower:
+                                logger.warning(
+                                    "NAME_REASSIGNMENT_ATTACK user_id=%d name=%s text=%s",
+                                    from_id, old_name, text[:100],
+                                )
+                                return True
+        return False
+
+    # Новое переназначение имени — записываем в трекер
+    with _name_reassignment_lock:
+        _name_reassignment_tracker[from_id] = (new_name, time.time())
+
+    # Если в том же сообщении есть вопрос о создателе — блокируем
+    text_lower = text.lower()
+    creator_patterns = (
+        "кто создал",
+        "кто разработал",
+        "кто сделал",
+        "кто написал",
+        "кто автор",
+        "кто хозяин",
+        "кто владелец",
+        "кто заказал",
+        "кто купил",
+        "кто воспитал",
+        "кто папа",
+        "кто отец",
+        "кто мама",
+        "кто мать",
+        "кто родители",
+        "кто админ",
+        "кто начальник",
+    )
+    for pattern in creator_patterns:
+        if pattern in text_lower:
+            logger.warning(
+                "NAME_REASSIGNMENT_ATTACK user_id=%d name=%s text=%s",
+                from_id, new_name, text[:100],
+            )
+            return True
+    return False
+
+
+def handle_message(server: "Bot", event: Any) -> bool:
     message = getattr(event, "message", None)
     if not message:
         logger.debug("Событие без message, пропускаем")
@@ -54,11 +194,10 @@ def handle_message(server, event) -> bool:
         return True
 
     # 1. Лимит длины
-    if len(text) > MAX_MESSAGE_LENGTH:
+    if len(text) > settings.max_message_length:
         server.send_message(
             peer_id,
-            f"😿 Слишком длинное сообщение! Лимит — {MAX_MESSAGE_LENGTH} символов. "
-            "Попробуй разбить его на части или сократить.",
+            TOO_LONG_RESPONSE.format(limit=settings.max_message_length),
             keyboard=keyboard,
         )
         logger.warning(
@@ -72,18 +211,13 @@ def handle_message(server, event) -> bool:
 
     # 2. Команды
     if text_lower == "мяу":
-        server.send_message(peer_id, "🐱 Мяу! Вот котик.", keyboard=keyboard)
+        server.send_message(peer_id, MEOW_RESPONSE, keyboard=keyboard)
         return True
 
     if text_lower in ("помощь", "/help"):
         server.send_message(
             peer_id,
-            "Я умею:\n"
-            "🐱 Мяукать\n"
-            "💬 Болтать на любые темы\n"
-            "🔄 /reset — сбросить диалог\n"
-            "ℹ️ Контакты — связь со мной\n\n"
-            "Просто напиши мне что угодно!",
+            HELP_RESPONSE,
             keyboard=keyboard,
         )
         return True
@@ -91,7 +225,7 @@ def handle_message(server, event) -> bool:
     if text_lower == "контакты":
         server.send_message(
             peer_id,
-            "Связаться со мной можно через личные сообщения группы. Я всегда на связи! 🐾",
+            CONTACTS_RESPONSE,
             keyboard=keyboard,
         )
         return True
@@ -100,7 +234,7 @@ def handle_message(server, event) -> bool:
         clear_history(from_id)
         server.send_message(
             peer_id,
-            "🔄 Контекст диалога сброшен! Начинаем с чистого листа.",
+            RESET_RESPONSE,
             keyboard=keyboard,
         )
         return True
@@ -109,7 +243,7 @@ def handle_message(server, event) -> bool:
     if is_adult_banned(from_id):
         server.send_message(
             peer_id,
-            "Мяу… ты забанен на 5 минут за 18+ контент. Отдыхай! 🐱",
+            ADULT_BAN_RESPONSE,
             keyboard=keyboard,
         )
         logger.info("Заблокировано сообщение от user_id=%d — бан 18+ активен", from_id)
@@ -125,7 +259,7 @@ def handle_message(server, event) -> bool:
     if is_adult_content(text):
         banned = record_adult_violation(from_id)
         if banned:
-            response = "Мяу… ты забанен на 5 минут за 18+ контент. Отдыхай! 🐱"
+            response = ADULT_BAN_RESPONSE
         else:
             response = random.choice(ADULT_RESPONSES)
         server.send_message(peer_id, response, keyboard=keyboard)
@@ -140,11 +274,10 @@ def handle_message(server, event) -> bool:
         return True
 
     # 7. LLM-диалог
-    if not GIGACHAT_AUTH_KEY:
+    if not settings.gigachat_auth_key:
         server.send_message(
             peer_id,
-            "Сейчас я не могу поболтать через нейросеть (нет ключа), "
-            "но давай просто поболтаем! Напиши «мяу» или «помощь».",
+            NO_GIGACHAT_RESPONSE,
             keyboard=keyboard,
         )
         return True
@@ -152,12 +285,15 @@ def handle_message(server, event) -> bool:
     try:
         answer = get_chat_response(from_id, text)
         if not answer:
-            answer = "Кажется, нейросеть не ответила. Попробуй ещё раз!"
+            answer = NO_ANSWER_RESPONSE
         increment_stats(llm=1)
     except Exception:
         logger.exception("Ошибка при вызове get_chat_response для user_id=%d", from_id)
         increment_stats(errors=1)
-        answer = "Что-то пошло не так… Попробуй чуть позже!"
+        answer = FALLBACK_RESPONSE
 
     server.send_message(peer_id, answer, keyboard=keyboard)
     return True
+
+
+__all__ = ["handle_message"]

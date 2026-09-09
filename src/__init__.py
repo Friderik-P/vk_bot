@@ -16,8 +16,7 @@ VK Bot with GigaChat — основной пакет проекта.
 """
 
 # --- Часто используемые конфиги ---
-from .config import VK_API_TOKEN, VK_GROUP_ID
-from .admins import get_admins, add_admin
+from .config import settings
 
 # --- Инициализация и управление БД ---
 from .db import init_db, close_all_connections
@@ -34,3 +33,17 @@ from .db import (
     record_adult_violation,
     is_adult_banned,
 )
+
+__all__ = [
+    "settings",
+    "init_db",
+    "close_all_connections",
+    "Server",
+    "increment_stats",
+    "get_stats",
+    "check_ratelimit",
+    "is_spam_banned",
+    "ban_for_spam",
+    "record_adult_violation",
+    "is_adult_banned",
+]

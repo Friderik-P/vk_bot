@@ -58,8 +58,24 @@ def init_db() -> None:
                 "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) "
                 "VALUES (1, 0, 0, 0)"
             )
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS admin_audit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    admin_id INTEGER NOT NULL,
+                    command TEXT NOT NULL,
+                    peer_id INTEGER NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_admin_audit_admin "
+                "ON admin_audit (admin_id, created_at)"
+            )
             conn.commit()
             logger.info("База данных инициализирована.")
 
     # Пробрасываем исключение — main.py должен знать, что БД не готова
     retry_on_lock(_init)
+
+
+__all__ = ["init_db"]

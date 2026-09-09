@@ -5,6 +5,7 @@ import time
 import logging
 from vk_api.utils import get_random_id
 
+from ..constants import VK_ERROR_RATE_LIMIT, VK_ERROR_USER_BLOCKED, VK_ERROR_MSG_TOO_LONG, VK_ERROR_CHAT_NOT_FOUND
 from ..db import get_blocked_ids, mark_user_blocked
 
 logger = logging.getLogger(__name__)
@@ -70,12 +71,13 @@ def broadcast_hello(
             except Exception as e:
                 vk_error_code = getattr(e, "code", None)
 
-                # Временная ошибка: лимит запросов (6) — пробуем ещё
-                if vk_error_code == 6:
+                # Временная ошибка: лимит запросов — пробуем ещё
+                if vk_error_code == VK_ERROR_RATE_LIMIT:
                     wait_time = 5 * attempt
                     logger.warning(
-                        "Лимит запросов VK API (код 6) на user_id=%d. "
+                        "Лимит запросов VK API (код %d) на user_id=%d. "
                         "Попытка %d/%d, ждём %d сек.",
+                        vk_error_code,
                         user_id,
                         attempt,
                         max_retries + 1,
@@ -85,7 +87,7 @@ def broadcast_hello(
                     continue
 
                 # Окончательные ошибки: пользователь недоступен
-                elif vk_error_code in (901, 902, 214):
+                elif vk_error_code in (VK_ERROR_USER_BLOCKED, VK_ERROR_MSG_TOO_LONG, VK_ERROR_CHAT_NOT_FOUND):
                     logger.debug(
                         "Пользователь user_id=%d недоступен (код %d). "
                         "Добавляем в игнор-лист.",
@@ -116,3 +118,6 @@ def broadcast_hello(
 
     logger.info("Рассылка завершена: отправлено=%d, ошибок=%d", count_sent, count_failed)
     return count_sent, count_failed
+
+
+__all__ = ["broadcast_hello"]
