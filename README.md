@@ -1,0 +1,370 @@
+﻿# VK Bot: бот для ВКонтакте с GigaChat
+
+**Версия:** `0.0.1`
+
+Умный бот для сообщества ВКонтакте: рассылка, проверка доступности GigaChat, антиспам, ведение истории диалогов и еженедельная очистка старых сообщений.
+
+## 📋 Возможности
+
+- **Интеграция с GigaChat**: генерация ответов, проверка статуса (health‑check), уведомления админов при сбоях.
+- **Рассылка сообщений**: автоматическая по расписанию, с учётом игнор‑листа и лимитов VK API.
+- **Антиспам и фильтрация**: проверка на запрещённый контент, ограничение частоты сообщений, бан за спам.
+- **18+ фильтр**: жёсткий и мягкий уровни, блокировка до LLM, автоматический бан на 5 минут при 3 нарушениях, поддержка транслитерации и обхода пробелов.
+- **Контекстный фильтр**: запрещённые темы (наркотики, война, психотропы, химия), ответ без бана, только лог.
+- **История диалогов**: сохранение переписки, статистика, еженедельная очистка по лимиту записей.
+- **Админ‑панель**: команды `/health`, уведомления, управление состоянием.
+- **Планировщик задач**: фоновый поток с расписанием (рассылка, health‑check, очистка истории).
+
+## 🗂 Структура проекта
+
+```text
+vk_bot/
+├── .env                    # Переменные окружения (токены, флаги)
+├── .gitignore              # Игнорируемые файлы
+├── main.py                 # Точка входа
+├── requirements.txt        # Зависимости (runtime + dev)
+├── admins.yaml             # Файл с администраторами
+├── .github                 # Шаблоны GitHub
+│   ├── ISSUE_TEMPLATE/      # Шаблоны для Issues (bug_report, feature_request, question)
+│   └── pull_request_template.md # Шаблон для Pull Request
+│
+└── src/
+    ├── __init__.py         # Публичный интерфейс пакета src
+    ├── config.py           # Чтение и валидация .env (VK_API_TOKEN, GIGACHAT_AUTH_KEY и др.)
+    ├── prompts.py          # Промпты, заглушки, параметры моделей (включая MODEL)
+    ├── chat.py             # Логика запросов к GigaChat, обработка ошибок
+    ├── server.py           # Long Poll, маршрутизация, антиспам, админ‑команды
+    ├── admins.py           # Хранение и управление списком администраторов
+    │
+    ├── db/                 # Работа с SQLite
+    │   ├── __init__.py      # Реэкспорт функций БД
+    │   ├── connection.py    # Thread-local SQLite, retry_on_lock, close_all_connections
+    │   ├── schema.py        # Создание таблиц и индексов (init_db)
+    │   ├── users.py         # load_peer_ids, add_peer_id, mark_user_blocked, get_blocked_ids
+    │   ├── chat_history.py  # save_message, load_history, clear_chat_history, prune_all_history
+    │   ├── stats.py         # increment_stats, get_stats
+    │   └── spam.py          # check_ratelimit, is_spam_banned, ban_for_spam, analyze_message_for_spam
+    │
+    ├── filters/            # Фильтры контента и нормализация текста
+    │   ├── __init__.py      # Экспорт is_adult_content, is_adult_content_soft, is_context_blocked, normalize_text, deobfuscate, transliterate_to_cyrillic и др.
+    │   ├── adult.py         # is_adult_content, списки слов и ответов
+    │   ├── adult_config.yaml # Конфигурация 18+ фильтра
+    │   ├── context.py       # is_context_blocked, CONTEXT_RESPONSES
+    │   ├── context_config.yaml # Конфигурация контекстного фильтра
+    │   ├── spam.py          # Реэкспорт analyze_message_for_spam из db/spam.py
+    │   └── utils.py         # normalize_text, deobfuscate, transliterate_to_cyrillic
+    │
+    ├── keyboards/           # Клавиатуры VK
+    │   ├── __init__.py      # Экспорт get_main_menu_keyboard, get_inline_keyboard, get_admin_help_inline_keyboard
+    │   ├── main_menu.py     # get_main_menu_keyboard
+    │   ├── inline.py        # get_inline_keyboard
+    │   └── types.py         # Цвета кнопок (COLOR_ACTION, COLOR_INFO, COLOR_DANGER, COLOR_DEFAULT)
+    │
+    ├── handlers/           # Обработчики событий
+    │   ├── __init__.py      # Экспорт handle_message, handle_callback, normalize_text_for_triggers
+    │   ├── message.py       # Обработка входящих сообщений (команды, триггеры, 18+, LLM)
+    │   ├── callback.py      # Обработка callback-событий (inline-кнопки)
+    │   └── utils.py         # normalize_text_for_triggers
+    │
+    ├── services/           # Бизнес-сервисы
+    │   ├── __init__.py      # Экспорт broadcast_hello, run_health_check, check_gigachat_manual
+    │   ├── broadcaster.py   # Рассылка с retry при rate limit и ведением игнор-листа
+    │   ├── health.py        # Health-check GigaChat (авто/ручной), уведомления админов
+    │   └── gigachat_client.py # get_client — клиент GigaChat с retry-параметрами
+    │
+    └── scheduler/          # Планировщик задач
+        ├── __init__.py      # from .runner import start_scheduler
+        ├── constants.py     # BROADCAST_MESSAGE, интервалы, PRUNE_TIME, PRUNE_KEEP_RECORDS
+        ├── jobs.py          # job_broadcast, job_health, job_prune
+        └── runner.py        # start_scheduler — запуск фонового потока с задачами
+│
+└── logs/                   # Логи (создаются автоматически при старте)
+    ├── bot.info.log        # Информационные логи
+    └── bot.error.log       # Логи ошибок
+```
+
+## 🚀 Быстрый старт
+
+**Требуется Python >= 3.10**
+
+### 1. Подготовка окружения
+
+```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Linux/macOS
+source venv/bin/activate
+```
+
+### 2. Установка зависимостей
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Настройка .env
+
+Создай файл `.env` в корне проекта и добавь:
+
+```dotenv
+VK_API_TOKEN=ваш_токен_сообщества
+VK_GROUP_ID=id_группы
+GIGACHAT_AUTH_KEY=Bearer ваш_ключ_GigaChat
+LOG_DIR=logs
+DB_FILE=vk_bot.db
+ADMIN_IDS=000000000,000000000
+SERVER_NAME=MyVKBot
+```
+
+### 4. Инициализация БД и запуск
+
+```bash
+python main.py
+```
+
+При первом запуске автоматически:
+
+- создаётся папка `logs/` и файлы логов;
+- создаётся и инициализируется база данных `vk_bot.db`;
+- запускается Long Poll и планировщик задач.
+
+При первом запуске из переменной `ADMIN_IDS` автоматически создаётся таблица администраторов. Любой из них может выдавать права другим пользователям командой `/admin_add <id>` или по запросу пользователя «права администратора».
+
+## ⚙️ Конфигурация и параметры
+
+| Переменная | Назначение | Пример значения |
+| --- | --- | --- |
+| `VK_API_TOKEN` | Токен сообщества VK | `v123456...` |
+| `VK_GROUP_ID` | ID группы (число) | `123456789` |
+| `GIGACHAT_AUTH_KEY` | Ключ для GigaChat (с префиксом `Bearer`) | `Bearer xxxxx...` |
+| `LOG_DIR` | Папка для логов | `logs` |
+| `DB_FILE` | Путь к файлу SQLite | `vk_bot.db` |
+| `ADMIN_IDS` | Список ID администраторов (через запятую) | `000000000,000000000` |
+| `SERVER_NAME` | Имя сервера в логах | `MyVKBot` |
+
+## 🤖 Команды и меню
+
+### 👤 Обычные пользователи
+
+Главное меню (клавиатура):
+- **Мяу** — бот отвечает кошачьим приветствием.
+- **Помощь** — краткая справка по возможностям.
+- **Контакты** — информация для связи с сообществом.
+
+Текстовые команды и триггеры:
+- `мяу` — ответ «Мяу! Вот котик.»
+- `помощь` или `/help` — справка для пользователя.
+- `контакты` — контактная информация.
+- `/reset` — сбросить историю диалога с ботом.
+- Простые фразы: `привет`, `хай`, `здравствуй`, `ку`, `йо`, `пока`, `досвидания`, `спасибо`, `благодарю`, `какдела`, `чкокак`, `чтонового` — бот отвечает случайной фразой.
+- Любое другое сообщение — передаётся в GigaChat, если настроен ключ.
+
+Запрос прав администратора:
+- `права администратора` или `права администраторв` — отправить запрос на получение прав админа.
+
+### 👑 Администраторы
+
+Все команды пользователей, плюс:
+
+- `/health` — ручная проверка доступности GigaChat и вывод статуса.
+- `/stats` — статистика бота.
+- `/admins` — список администраторов.
+- `/admin_add <id>` — добавить администратора.
+- `/admin_del <id>` — удалить администратора.
+- `/delete_db` — удалить базу данных.
+- `/stop` — остановить бота.
+- `/restart` — перезагрузить бота.
+- `/help` — расширенная справка с админ-командами.
+
+При изменении статуса бот автоматически уведомляет всех админов из `ADMIN_IDS`.
+
+## 📢 Рассылка сообщений
+
+Рассылка выполняется через `broadcast_hello()` из `src/services/broadcaster.py`.
+
+**Параметры:**
+- Сообщение по умолчанию: `"Про меня забыли((\nМяф((\nПообщаемся?"` (можно изменить в `src/scheduler/constants.py`)
+- Пауза между отправками: `0.2` сек (настраивается через `DEFAULT_DELAY_SECONDS`)
+- Максимум повторных попыток на одного пользователя: `2` (при ошибке лимита VK API код 6)
+- Игнор-лист: пользователи с кодом ошибки `901`, `902`, `214` помечаются в БД как заблокированные и пропускаются в следующих рассылках
+
+**Логика:**
+1. Получает список всех пользователей из БД.
+2. Исключает заблокированных (`mark_user_blocked`).
+3. Отправляет сообщение каждому пользователю через `vk_api.messages.send`.
+4. При ошибке `rate limit` (код 6) — ждёт `5 * attempt` секунд и повторяет.
+5. При ошибке `901/902/214` — добавляет в игнор-лист и пропускает.
+6. Возвращает `(count_sent, count_failed)`.
+
+## 📅 Расписание задач (планировщик)
+
+Планировщик запускается автоматически при старте бота через `src/scheduler/runner.py`.
+
+### Задачи:
+
+- **Рассылка** — каждые 24 часа (`job_broadcast`)
+  - Вызывает `broadcast_hello()` с текстом из `BROADCAST_MESSAGE`.
+  - Пауза между сообщениями: `DEFAULT_DELAY_SECONDS = 0.2` сек.
+  - Пропускает заблокированных пользователей.
+
+- **Health‑check GigaChat** — каждые 10 минут (`job_health`, настраивается через `health_interval_minutes`)
+  - Проверяет доступность GigaChat через `run_health_check()`.
+  - При изменении статуса автоматически уведомляет всех админов из `ADMIN_IDS`.
+
+- **Очистка истории** — каждый понедельник в `03:00` (`job_prune`)
+  - Вызывает `prune_all_history(keep=PRUNE_KEEP_RECORDS)`.
+  - Оставляет последние `500` записей на пользователя (настраивается через `PRUNE_KEEP_RECORDS`).
+
+### Константы (`src/scheduler/constants.py`):
+
+| Константа | Значение | Назначение |
+| --- | --- | --- |
+| `BROADCAST_MESSAGE` | `"Про меня забыли((\nМяф((\nПообщаемся?"` | Текст рассылки |
+| `DEFAULT_DELAY_SECONDS` | `0.2` | Пауза между сообщениями в рассылке |
+| `DEFAULT_HEALTH_INTERVAL_MINUTES` | `10` | Интервал health-check |
+| `PRUNE_KEEP_RECORDS` | `500` | Сколько записей истории оставлять на пользователя |
+| `PRUNE_TIME` | `"03:00"` | Время очистки истории |
+
+## 🎨 Клавиатуры и цвета кнопок
+
+В проекте используются стандартные цвета VK:
+
+- `COLOR_ACTION` → `VkKeyboardColor.POSITIVE` (яркое действие)
+- `COLOR_INFO` → `VkKeyboardColor.SECONDARY` (вспомогательная информация)
+- `COLOR_DANGER` → `VkKeyboardColor.NEGATIVE` (опасное/важное действие)
+- `COLOR_DEFAULT` → `VkKeyboardColor.PRIMARY` (нейтральный цвет по умолчанию)
+
+Примечание: `VkKeyboardColor.DEFAULT` не существует в `vk_api`, поэтому используется `PRIMARY`.
+
+## 🚦 Фильтры
+
+### 18+ контент (`src/filters/adult.py`)
+
+Фильтр работает **до запроса к LLM**, чтобы экономить токены и не отправлять неподходящий контент в модель.
+
+- **Жёсткий уровень** — блокирует сообщение и выдаёт ответ из `ADULT_RESPONSES`.
+- **Мягкий уровень** — только логирует предупреждение, не блокирует (например, «член сообщества», «грудь» в медицинском контексте).
+- При 3 нарушениях жёсткого уровня пользователь получает бан на 5 минут.
+- Поддерживает:
+  - regex-паттерны для эвфемизмов и сокращений;
+  - многословные фразы с обходом пробелов;
+  - транслитерацию латиницы в кириллицу;
+  - префиксные и точные совпадения по словам.
+
+### Контекстный фильтр (`src/filters/context.py`)
+
+Блокирует сообщения по запрещённым темам без бана пользователя:
+- наркотики, психотропы, химия;
+- война, насилие;
+- другие контекстные темы из `context_config.yaml`.
+
+При срабатывании бот отвечает случайной фразой из `CONTEXT_RESPONSES` и записывает предупреждение в лог. Баны не выдаются.
+
+Оба фильтра нормализуют текст перед проверкой и обрабатывают смешанные скрипты (латиница + кириллица).
+
+## 🧪 Тестирование и разработка
+
+Для локальной разработки доступны инструменты:
+
+```bash
+pytest
+black . --check
+flake8 src/
+mypy src/
+```
+
+## 📚 Зависимости
+
+**Runtime:**
+
+- `vk-api` — работа с API ВКонтакте.
+- `gigachat` — клиент для GigaChat.
+- `pytz` — работа с часовыми поясами.
+- `schedule` — планировщик задач.
+- `python-dotenv` — загрузка переменных из `.env`.
+
+**Dev:**
+
+- `pytest`, `black`, `flake8`, `mypy` — тестирование, форматирование, линтинг, статическая типизация.
+
+## 🧩 Использование
+
+1. Добавьте группу в сообщество ВКонтакте как администратора.
+2. Включите Long Poll API в настройках группы.
+3. Запустите бота командой `python main.py`.
+4. Для управления используйте команды администратора или клавиатуру бота.
+
+## ⚠️ Troubleshooting
+
+- **Ошибка `RuntimeError: VK_API_TOKEN не найден в .env`** — проверьте, что файл `.env` лежит в корне проекта и содержит `VK_API_TOKEN`.
+- **Ошибка `RuntimeError: VK_GROUP_ID не задан или некорректен`** — проверьте, что в `.env` указан `VK_GROUP_ID` (число, положительное).
+- **Ошибка `vk_api.exceptions.ApiError: [901]`** — пользователь запретил сообщения от сообщества. Бот автоматически пометит его в БД и не будет отправлять ему сообщения.
+- **Ошибка `sqlite3.OperationalError: database is locked`** — при интенсивной записи может сработать блокировка. Бот автоматически повторяет запрос до 3 раз. Если ошибка persists — проверьте, что нет параллельных процессов, работающих с той же БД.
+- **Ошибка импорта `ModuleNotFoundError`** — убедитесь, что активировано виртуальное окружение и установлены зависимости: `pip install -r requirements.txt`.
+- **Бот не отвечает** — проверьте логи в папке `logs/`, убедитесь, что Long Poll запущен и токен группы действителен.
+
+## 🤝 Contributing
+
+1. Создайте форк репозитория.
+2. Создайте ветку с названием фичи: `git checkout -b feature/имя-фичи`.
+3. Внесите изменения и убедитесь, что код проходит проверки:
+   ```bash
+   black . --check
+   flake8 src/
+   mypy src/
+   pytest
+   ```
+4. Отправьте пул-реквест с описанием изменений. Используйте шаблон из `.github/pull_request_template.md`.
+5. Для багов и предложений используйте шаблоны Issues из `.github/ISSUE_TEMPLATE/`.
+
+## 📝 Лицензия
+
+Проект распространяется под лицензией [MIT](LICENSE).
+
+Copyright (c) 2026 Friderik_P
+
+### MIT License (English)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+### Лицензия MIT (русский перевод)
+
+Данное программное обеспечение распространяется на условиях лицензии MIT.
+
+Copyright (c) 2026 Friderik_P
+
+Настоящим бесплатно предоставляется любому лицу, получившему копию
+этого программного обеспечения и сопутствующей документации (далее — «Программное обеспечение»), право использовать
+Программное обеспечение без ограничений, включая неограниченное право
+на использование, копирование, изменение, слияние, публикацию,
+распространение, сублицензирование и/или продажу копий Программного обеспечения,
+а также разрешать лицам, которым предоставляется это Программное обеспечение, делать то же самое,
+при соблюдении следующих условий:
+
+Вышеуказанное уведомление об авторском праве и данное уведомление о разрешении
+должны быть включены во все копии или значительные части Программного обеспечения.
+
+ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ ПРЕДОСТАВЛЯЕТСЯ «КАК ЕСТЬ», БЕЗ КАКИХ-ЛИБО ГАРАНТИЙ,
+ЯВНЫХ ИЛИ ПОДРАЗУМЕВАЕМЫХ, ВКЛЮЧАЯ, НО НЕ ОГРАНИЧИВАЯСЬ ГАРАНТИЯМИ
+ТОВАРНОЙ ПРИГОДНОСТИ, СООТВЕТСТВИЯ ОПРЕДЕЛЁННОЙ ЦЕЛИ И НЕНАРУШЕНИЯ ПРАВ.
+НИ В КАКОМ СЛУЧАЕ АВТОРЫ ИЛИ ПРАВООБЛАДАТЕЛИ НЕ НЕСУТ ОТВЕТСТВЕННОСТИ
+ЗА ЛЮБЫЕ ПРЕТЕНЗИИ, УЩЕРБ ИЛИ ИНЫЕ ОБЯЗАТЕЛЬСТВА, БУДЬ ТО В РАМКАХ ДОГОВОРНЫХ
+ОТНОШЕНИЙ, ДЕЛИКТА ИЛИ ИНЫХ СЛУЧАЯХ, ВОЗНИКАЮЩИЕ ИЗ, В СВЯЗИ С ИЛИ В РЕЗУЛЬТАТЕ
+ИСПОЛЬЗОВАНИЯ ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ ИЛИ ИНЫХ ДЕЙСТВИЙ С НИМ.
