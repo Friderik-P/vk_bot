@@ -16,8 +16,6 @@ from ..utils.notify import notify_admins
 
 logger = logging.getLogger(__name__)
 
-PING_TIMEOUT_SECONDS = 10
-
 # Ротирующие короткие промпты для health-check, чтобы избежать
 # кэширования/детекции идентичных запросов на стороне GigaChat.
 HEALTH_CHECK_PROMPTS: Tuple[str, ...] = (
@@ -155,10 +153,7 @@ def run_health_check(
                 notify_admins(
                     vk_api,
                     admin_ids,
-                    (
-                        f"⚠️ GigaChat недоступен с {time_str}\n"
-                        f"Ошибка: {error_msg or 'Неизвестная ошибка'}"
-                    ),
+                    (f"⚠️ GigaChat недоступен с {time_str}\n" f"Ошибка: {error_msg or 'Неизвестная ошибка'}"),
                     send_func=send_func,
                 )
             else:
@@ -186,10 +181,7 @@ def check_gigachat_manual(chat_client) -> str:
     if is_ok:
         return f"✅ GigaChat доступен (проверка в {now_time})"
     else:
-        return (
-            f"❌ GigaChat недоступен (проверка в {now_time})\n"
-            f"Ошибка: {error_msg or 'Неизвестная ошибка'}"
-        )
+        return f"❌ GigaChat недоступен (проверка в {now_time})\n" f"Ошибка: {error_msg or 'Неизвестная ошибка'}"
 
 
 __all__ = ["run_health_check", "check_gigachat_manual"]

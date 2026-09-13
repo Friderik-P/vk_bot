@@ -34,7 +34,7 @@ from .spam import (
     record_adult_violation,
     is_adult_banned,
 )
-from .admin_audit import log_admin_action, get_admin_audit
+from .admin_audit import log_admin_action
 
 __all__ = [
     "get_connection",
@@ -57,6 +57,4 @@ __all__ = [
     "record_adult_violation",
     "is_adult_banned",
     "log_admin_action",
-    "get_admin_audit",
 ]
-

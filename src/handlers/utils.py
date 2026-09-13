@@ -6,10 +6,7 @@ import string
 # Таблица перевода: удаляем знаки препинания.
 # string.punctuation — ASCII (!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~)
 # Дополнительно: Unicode-пунктуация и кавычки
-_PUNCTUATION = (
-    string.punctuation
-    + "…''""«»—–№·•"
-)
+_PUNCTUATION = string.punctuation + "…''" "«»—–№·•"
 
 _TRANS_TABLE = str.maketrans("", "", _PUNCTUATION)
 

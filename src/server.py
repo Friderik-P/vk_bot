@@ -19,9 +19,6 @@ from vk_api.exceptions import ApiError
 from .config import settings
 from .constants import (
     VK_ERROR_USER_BLOCKED,
-    VK_ERROR_MSG_TOO_LONG,
-    VK_ERROR_CHAT_NOT_FOUND,
-    VK_ERROR_RATE_LIMIT,
     SCHEDULER_DELAY_SECONDS,
     SCHEDULER_HEALTH_INTERVAL_MINUTES,
 )
@@ -44,9 +41,7 @@ from .prompts import (
     RATE_LIMIT_RESPONSE,
     SPAM_RESPONSE,
     NOT_UNDERSTOOD_RESPONSE,
-    ADMIN_HELP_RESPONSE,
     HELP_RESPONSE,
-    STATS_RESPONSE,
 )
 from .services.health import check_gigachat_manual
 from .admins import get_admins, add_admin, remove_admin
@@ -54,6 +49,26 @@ from .handlers import handle_message, handle_callback
 from .utils.notify import notify_admins
 
 logger = logging.getLogger(__name__)
+
+
+ADMIN_HELP_RESPONSE: str = (
+    "👑 Админ-команды:\n"
+    "/health — проверка GigaChat\n"
+    "/stats — статистика\n"
+    "/admins — список администраторов\n"
+    "/admin_add <id> — добавить администратора\n"
+    "/admin_del <id> — удалить администратора\n"
+    "/delete_db — удалить базу данных\n"
+    "/stop — остановить бота\n"
+    "/restart — перезагрузить бота"
+)
+STATS_RESPONSE: str = (
+    "📊 Статистика бота\n\n"
+    "💬 Всего сообщений: {total_messages}\n"
+    "🤖 Через LLM (GigaChat): {llm_messages}\n"
+    "⚠️ Ошибок: {errors}\n\n"
+    "Мяу! Всё под контролем. 🐱"
+)
 
 
 @runtime_checkable
@@ -130,10 +145,7 @@ class AdminCommandHandler:
                     user_ids=sorted(admins),
                     fields="",
                 )
-                admin_list = "\n".join(
-                    f"• [id{u['id']}|{u['first_name']} {u['last_name']}]"
-                    for u in users_info
-                )
+                admin_list = "\n".join(f"• [id{u['id']}|{u['first_name']} {u['last_name']}]" for u in users_info)
             except ApiError as e:
                 logger.error("Ошибка получения информации об админах: %s", e)
                 admin_list = "\n".join(f"• {aid}" for aid in sorted(admins))
@@ -432,8 +444,9 @@ class Server:
 
         self.chat_client = None
         try:
-            from .services.gigachat_client import get_client
-            self.chat_client = get_client(max_retries=0)
+            from .chat import get_gigachat_client
+
+            self.chat_client = get_gigachat_client()
         except Exception as e:
             logger.error("Не удалось инициализировать GigaChat-клиент: %s", e)
 
@@ -488,13 +501,16 @@ class Server:
             else:
                 logger.error(
                     "VK API ошибка отправки peer_id=%s: [код %s] %s",
-                    peer_id, e.code, e,
+                    peer_id,
+                    e.code,
+                    e,
                 )
         except Exception as e:
             logger.error("Ошибка отправки сообщения peer_id=%s: %s", peer_id, e)
 
     def start(self) -> None:
         from .scheduler.runner import start_scheduler
+
         start_scheduler(
             vk_api_instance=self.vk_api,
             peer_ids_func=self.get_peer_ids,
@@ -520,46 +536,43 @@ class Server:
                     except KeyboardInterrupt:
                         raise
                     except Exception:
-                        logger.exception(
-                            "Неперехваченное исключение при обработке события, "
-                            "продолжаю работу"
-                        )
+                        logger.exception("Неперехваченное исключение при обработке события, " "продолжаю работу")
                         increment_stats(errors=1)
                 if self._shutdown_event is not None and self._shutdown_event.is_set():
                     break
             except KeyboardInterrupt:
                 logger.info("Получен KeyboardInterrupt, останавливаюсь...")
                 break
-            except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout, TimeoutError, ConnectionError, ConnectionResetError) as e:
-                logger.warning(
-                    "Соединение разорвано: %s. Переподключение через 5 сек...", e
-                )
-                time.sleep(5)
-                try:
-                    self._reconnect()
-                except Exception as reconnect_err:
-                    logger.error("Не удалось переподключиться: %s", reconnect_err)
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout,
+                TimeoutError,
+                ConnectionError,
+                ConnectionResetError,
+            ) as e:
+                increment_stats(errors=1)
+                logger.warning("Соединение разорвано: %s. Переподключение через 5 сек...", e)
+                self._reconnect_with_backoff(5)
             except ApiError as e:
-                logger.error(
-                    "Ошибка VK API: %s. Переподключение через 10 сек...", e
-                )
-                time.sleep(10)
-                try:
-                    self._reconnect()
-                except Exception as reconnect_err:
-                    logger.error("Не удалось переподключиться: %s", reconnect_err)
+                increment_stats(errors=1)
+                logger.error("Ошибка VK API: %s. Переподключение через 10 сек...", e)
+                self._reconnect_with_backoff(10)
             except Exception as e:
+                increment_stats(errors=1)
                 logger.error(
-                    "Непредвиденная ошибка в цикле Long Poll: %s. "
-                    "Переподключение через 15 сек...",
+                    "Непредвиденная ошибка в цикле Long Poll: %s. " "Переподключение через 15 сек...",
                     e,
                     exc_info=True,
                 )
-                time.sleep(15)
-                try:
-                    self._reconnect()
-                except Exception as reconnect_err:
-                    logger.error("Не удалось переподключиться: %s", reconnect_err)
+                self._reconnect_with_backoff(15)
+
+    def _reconnect_with_backoff(self, duration: int) -> None:
+        """Сон + переподключение с обработкой ошибок."""
+        time.sleep(duration)
+        try:
+            self._reconnect()
+        except Exception as reconnect_err:
+            logger.error("Не удалось переподключиться: %s", reconnect_err)
 
     def _process_event(self, event: Any) -> None:
         """Обработка одного события Long Poll."""
@@ -605,7 +618,9 @@ class Server:
 
         logger.info(
             "ADMIN_REQUEST user_id=%d peer_id=%s text=%s",
-            from_id, peer_id, text,
+            from_id,
+            peer_id,
+            text,
         )
         admins = get_admins()
         if not admins:
@@ -629,9 +644,7 @@ class Server:
                     ),
                 )
             except Exception as e:
-                logger.error(
-                    "Не удалось отправить уведомление админу %d: %s", admin_id, e
-                )
+                logger.error("Не удалось отправить уведомление админу %d: %s", admin_id, e)
 
         self.send_message(
             peer_id,

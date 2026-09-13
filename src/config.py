@@ -39,7 +39,10 @@ def _get_int_min(name: str, default: int, min_value: int) -> int:
     if value < min_value:
         logger.warning(
             "%s=%d слишком мал (минимум %d), используется default=%d",
-            name, value, min_value, default,
+            name,
+            value,
+            min_value,
+            default,
         )
         return default
     return value
@@ -144,4 +147,4 @@ class _SettingsProxy:
 
 settings = _SettingsProxy()
 
-__all__ = ["Settings", "settings", "BASE_DIR", "load", "get_settings"]
+__all__ = ["Settings", "settings", "BASE_DIR", "get_settings"]

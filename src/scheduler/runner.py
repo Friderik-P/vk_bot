@@ -6,7 +6,7 @@ import schedule
 import time
 import logging
 
-from .jobs import job_broadcast, job_health, job_prune, get_next_health_interval, reset_health_interval
+from .jobs import job_broadcast, job_health, job_prune, get_next_health_interval
 from .constants import (
     DEFAULT_DELAY_SECONDS,
     DEFAULT_HEALTH_INTERVAL_MINUTES,
@@ -65,9 +65,7 @@ def start_scheduler(
     schedule.every().monday.at(PRUNE_TIME).do(job_prune)
 
     def _run():
-        logger.info(
-            "[Scheduler] Планировщик запущен. Рассылка, health-check и очистка активны."
-        )
+        logger.info("[Scheduler] Планировщик запущен. Рассылка, health-check и очистка активны.")
         global _current_health_interval, _health_job
         while True:
             try:
@@ -91,19 +89,11 @@ def start_scheduler(
                         )
                         _current_health_interval = next_interval
             except Exception:
-                logger.exception(
-                    "[Scheduler] Неперехваченное исключение в цикле планировщика"
-                )
+                logger.exception("[Scheduler] Неперехваченное исключение в цикле планировщика")
             time.sleep(1)
 
     thread = threading.Thread(target=_run, daemon=True, name="scheduler-loop")
     thread.start()
 
 
-def set_health_interval(minutes: int) -> None:
-    """Принудительно устанавливает интервал health-check."""
-    global _current_health_interval
-    _current_health_interval = max(1, minutes)
-
-
-__all__ = ["start_scheduler", "set_health_interval"]
+__all__ = ["start_scheduler"]

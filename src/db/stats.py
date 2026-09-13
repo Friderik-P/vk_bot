@@ -32,15 +32,16 @@ def increment_stats(total: int = 0, llm: int = 0, errors: int = 0) -> None:
                 # Строки id=1 нет — создаём
                 logger.warning("stats: строка id=1 не найдена, пересоздаю")
                 conn.execute(
-                    "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) "
-                    "VALUES (1, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) " "VALUES (1, ?, ?, ?)",
                     (total, llm, errors),
                 )
                 conn.commit()
 
             logger.debug(
                 "Статистика обновлена: total=%d, llm=%d, errors=%d",
-                total, llm, errors,
+                total,
+                llm,
+                errors,
             )
 
     try:
@@ -54,9 +55,7 @@ def get_stats() -> dict:
 
     def _get():
         with get_connection() as conn:
-            cur = conn.execute(
-                "SELECT total_messages, llm_messages, errors FROM stats WHERE id = 1"
-            )
+            cur = conn.execute("SELECT total_messages, llm_messages, errors FROM stats WHERE id = 1")
             row = cur.fetchone()
             if row:
                 return {

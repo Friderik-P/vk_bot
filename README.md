@@ -12,9 +12,10 @@
 - **18+ фильтр**: жёсткий и мягкий уровни, блокировка до LLM, автоматический бан на 5 минут при 3 нарушениях, поддержка транслитерации и обхода пробелов.
 - **Контекстный фильтр**: запрещённые темы (наркотики, война, психотропы, химия, создатель, Сбер, ГигаЧат), ответ без бана, только лог.
 - **История диалогов**: сохранение переписки, статистика, еженедельная очистка по лимиту записей.
+- **Персистентные баны**: баны за спам и 18+ контент сохраняются в БД и выживают после рестарта бота.
 - **Админ‑панель**: команды `/health`, `/stats`, `/admins`, `/admin_add`, `/admin_del`, `/stop`, `/restart`, audit log.
 - **Планировщик задач**: фоновый поток с расписанием (рассылка, health‑check, очистка истории).
-- **Graceful shutdown**: корректное завершение по SIGINT/SIGTERM с закрытием соединений.
+- **Graceful shutdown**: корректное завершение по SIGINT/SIGTERM с закрытием соединений (кросс‑платформенно).
 - **Защита от переназначения имён**: детектор атак вида "зови тебя X" + "кто создал X?".
 
 ## 🗂 Структура проекта
@@ -48,11 +49,11 @@ vk_bot/
     │   ├── users.py         # load_peer_ids, add_peer_id, mark_user_blocked, get_blocked_ids
     │   ├── chat_history.py  # save_message, load_history, clear_chat_history, prune_all_history
     │   ├── stats.py         # increment_stats, get_stats
-    │   ├── spam.py          # SpamTracker: check_ratelimit, is_spam_banned, ban_for_spam, adult violations
+    │   ├── spam.py          # SpamTracker: check_ratelimit, is_spam_banned, ban_for_spam, adult violations (персистентно в БД)
     │   └── admin_audit.py   # log_admin_action, get_admin_audit — audit log для админ-действий
     │
     ├── filters/            # Фильтры контента и нормализация текста
-    │   ├── __init__.py      # Экспорт is_adult_content, is_adult_content_soft, is_context_blocked, normalize_text, deobfuscate, transliterate_to_cyrillic
+    │   ├── __init__.py      # Экспорт is_adult_content, is_context_blocked, analyze_message_for_spam, normalize_text, deobfuscate, transliterate_to_cyrillic
     │   ├── adult.py         # is_adult_content, списки слов и ответов
     │   ├── adult_config.yaml # Конфигурация 18+ фильтра
     │   ├── context.py       # is_context_blocked, CONTEXT_RESPONSES
@@ -61,10 +62,10 @@ vk_bot/
     │   └── utils.py         # normalize_text, deobfuscate, transliterate_to_cyrillic
     │
     ├── keyboards/           # Клавиатуры VK
-    │   ├── __init__.py      # Экспорт get_main_menu_keyboard, get_inline_keyboard, get_admin_help_inline_keyboard
+    │   ├── __init__.py      # Экспорт get_main_menu_keyboard, get_admin_help_inline_keyboard
     │   ├── main_menu.py     # get_main_menu_keyboard
-    │   ├── inline.py        # get_inline_keyboard
-    │   └── types.py         # Цвета кнопок (COLOR_ACTION, COLOR_INFO, COLOR_DANGER, COLOR_DEFAULT)
+    │   ├── inline.py        # get_admin_help_inline_keyboard
+    │   └── types.py         # Цвета кнопок (COLOR_ACTION, COLOR_INFO, COLOR_DANGER)
     │
     ├── handlers/           # Обработчики событий
     │   ├── __init__.py      # Экспорт handle_message, handle_callback, normalize_text_for_triggers
@@ -75,8 +76,7 @@ vk_bot/
     ├── services/           # Бизнес-сервисы
     │   ├── __init__.py      # Экспорт broadcast_hello, run_health_check, check_gigachat_manual
     │   ├── broadcaster.py   # Рассылка с retry при rate limit и ведением игнор-листа
-    │   ├── health.py        # Health-check GigaChat (авто/ручной), уведомления админов
-    │   └── gigachat_client.py # get_client — клиент GigaChat с retry-параметрами
+    │   └── health.py        # Health-check GigaChat (авто/ручной), уведомления админов
     │
     └── scheduler/          # Планировщик задач
         ├── __init__.py      # from .runner import start_scheduler
@@ -87,7 +87,7 @@ vk_bot/
 └── logs/                   # Логи (создаются автоматически при старте)
     ├── bot.info.log        # Информационные логи
     └── bot.error.log       # Логи ошибок
-  ```
+```
 
 ## 🚀 Быстрый старт
 
@@ -111,7 +111,13 @@ pip install -r requirements.txt
 
 ### 3. Настройка .env
 
-Создай файл `.env` в корне проекта и добавь:
+Скопируй шаблон и заполни своими значениями:
+
+```bash
+cp .env.example .env
+```
+
+Затем отредактируй `.env`:
 
 ```dotenv
 VK_API_TOKEN=ваш_токен_сообщества
@@ -132,6 +138,8 @@ MAX_HISTORY=50
 RATE_LIMIT_COUNT=20
 RATE_LIMIT_MINUTES=5
 ```
+
+⚠️ **Никогда не коммить `.env` с реальными токенами** — файл в `.gitignore`. Для продакшена используйте secrets manager.
 
 ### 4. Инициализация БД и запуск
 
@@ -250,9 +258,8 @@ python main.py
 - `COLOR_ACTION` → `VkKeyboardColor.POSITIVE` (яркое действие)
 - `COLOR_INFO` → `VkKeyboardColor.SECONDARY` (вспомогательная информация)
 - `COLOR_DANGER` → `VkKeyboardColor.NEGATIVE` (опасное/важное действие)
-- `COLOR_DEFAULT` → `VkKeyboardColor.PRIMARY` (нейтральный цвет по умолчанию)
 
-Примечание: `VkKeyboardColor.DEFAULT` не существует в `vk_api`, поэтому используется `PRIMARY`.
+Примечание: `VkKeyboardColor.DEFAULT` не существует в `vk_api`, поэтому используется `PRIMARY` при необходимости.
 
 ## 🚦 Фильтры
 
@@ -297,7 +304,6 @@ mypy src/
 
 - `vk-api>=11.10.1` — работа с API ВКонтакте.
 - `gigachat>=0.2.3` — клиент для GigaChat.
-- `pytz>=2026.3.post1` — работа с часовыми поясами.
 - `schedule>=1.2.2` — планировщик задач.
 - `python-dotenv>=1.2.3` — загрузка переменных из `.env`.
 - `pyyaml>=6.0.2` — работа с YAML-конфигами.
@@ -325,6 +331,8 @@ mypy src/
 - **Ошибка `sqlite3.OperationalError: database is locked`** — при интенсивной записи может сработать блокировка. Бот автоматически повторяет запрос до 3 раз. Если ошибка persists — проверьте, что нет параллельных процессов, работающих с той же БД.
 - **Ошибка импорта `ModuleNotFoundError`** — убедитесь, что активировано виртуальное окружение и установлены зависимости: `pip install -r requirements.txt`.
 - **Бот не отвечает** — проверьте логи в папке `logs/`, убедитесь, что Long Poll запущен и токен группы действителен.
+- **Баны не сбрасываются после рестарта** — это фича: баны за спам и 18+ контент теперь персистентны (хранятся в БД). Для сброса удалите записи из таблиц `spam_bans` / `adult_bans`.
+- **На Windows не работают сигналы** — бот корректно обрабатывает `Ctrl+C` (SIGINT), SIGTERM игнорируется (нет в Windows).
 
 ## 🤝 Contributing
 

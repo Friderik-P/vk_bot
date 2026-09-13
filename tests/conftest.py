@@ -49,6 +49,7 @@ def _reset_modules(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr("src.admins._store", new_admins, raising=False)
 
     new_tracker = SpamTracker()
+    new_tracker.reset()
     monkeypatch.setattr("src.db.spam._tracker", new_tracker, raising=False)
 
     new_chat = GigaChatService()

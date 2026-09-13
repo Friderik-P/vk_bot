@@ -36,12 +36,10 @@ def add_peer_id(peer_ids_set: set[int], user_id: int) -> set[int]:
 
     # Если уже в set — обновляем last_seen в БД и выходим
     if user_id in peer_ids_set:
+
         def _touch():
             with get_connection() as conn:
-                conn.execute(
-                    "UPDATE users SET last_seen = datetime('now') WHERE user_id = ?",
-                    (user_id,)
-                )
+                conn.execute("UPDATE users SET last_seen = datetime('now') WHERE user_id = ?", (user_id,))
                 conn.commit()
 
         try:
@@ -52,14 +50,8 @@ def add_peer_id(peer_ids_set: set[int], user_id: int) -> set[int]:
 
     def _add():
         with get_connection() as conn:
-            conn.execute(
-                "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
-                (user_id,)
-            )
-            conn.execute(
-                "UPDATE users SET last_seen = datetime('now') WHERE user_id = ?",
-                (user_id,)
-            )
+            conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+            conn.execute("UPDATE users SET last_seen = datetime('now') WHERE user_id = ?", (user_id,))
             conn.commit()
 
     try:
@@ -83,13 +75,10 @@ def mark_user_blocked(user_id: int, reason: str = "") -> None:
                 INSERT OR REPLACE INTO blocked_users (user_id, blocked_at, reason)
                 VALUES (?, datetime('now'), ?)
                 """,
-                (user_id, reason)
+                (user_id, reason),
             )
             conn.commit()
-            logger.info(
-                "Пользователь user_id=%d добавлен в игнор-лист (причина: %s)",
-                user_id, reason
-            )
+            logger.info("Пользователь user_id=%d добавлен в игнор-лист (причина: %s)", user_id, reason)
 
     try:
         retry_on_lock(_mark)

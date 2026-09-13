@@ -45,7 +45,7 @@ def is_adult_content(text: str) -> bool:
     смешанных скриптов (например, "cекс", "p0rn").
 
     Мягкие слова (уровень 2) НЕ блокируют — они только логируются
-    через is_adult_content_soft(), чтобы не ловить "член сообщества",
+    через отдельную проверку, чтобы не ловить "член сообщества",
     "грудь" в медицине и т.п.
 
     При ошибке нормализации — возвращаем False (пропускаем),
@@ -110,39 +110,8 @@ def is_adult_content(text: str) -> bool:
     return False
 
 
-def is_adult_content_soft(text: str) -> bool:
-    """
-    Проверяет наличие мягких 18+ слов (уровень 2).
-    Не блокирует — только логирует WARNING.
-    Используется для мониторинга: "член", "грудь" и т.п. в безобидном контексте.
-    """
-    if not text:
-        return False
-
-    try:
-        normalized = normalize_text(text)
-    except Exception:
-        logger.exception("18+ фильтр: ошибка нормализации текста — пропускаю")
-        return False
-
-    if not normalized:
-        return False
-
-    tokens = set(normalized.split())
-    for token in tokens:
-        if token in ADULT_KEYWORDS_SOFT:
-            logger.warning(
-                "18+ фильтр сработал (мягкое слово): «%s» — возможен ложноположительный результат",
-                token,
-            )
-            return True
-
-    return False
-
-
 __all__ = [
     "is_adult_content",
-    "is_adult_content_soft",
     "ADULT_KEYWORDS",
     "ADULT_KEYWORDS_SOFT",
     "ADULT_PHRASES",

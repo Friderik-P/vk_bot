@@ -42,10 +42,7 @@ def init_db() -> None:
                     created_at DATETIME DEFAULT (datetime('now'))
                 )
             """)
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_chat_history_user "
-                "ON chat_history (user_id, id)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_history_user " "ON chat_history (user_id, id)")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS stats (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -55,8 +52,7 @@ def init_db() -> None:
                 )
             """)
             conn.execute(
-                "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) "
-                "VALUES (1, 0, 0, 0)"
+                "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) " "VALUES (1, 0, 0, 0)"
             )
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS admin_audit (
@@ -67,9 +63,36 @@ def init_db() -> None:
                     created_at DATETIME NOT NULL DEFAULT (datetime('now'))
                 )
             """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_admin_audit_admin " "ON admin_audit (admin_id, created_at)")
+            # Spam bans (persistent)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS spam_bans (
+                    user_id INTEGER PRIMARY KEY,
+                    banned_at DATETIME NOT NULL DEFAULT (datetime('now')),
+                    expires_at DATETIME NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_spam_bans_expires " "ON spam_bans (expires_at)")
+            # Adult bans (persistent)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS adult_bans (
+                    user_id INTEGER PRIMARY KEY,
+                    banned_at DATETIME NOT NULL DEFAULT (datetime('now')),
+                    expires_at DATETIME NOT NULL,
+                    violation_count INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_adult_bans_expires " "ON adult_bans (expires_at)")
+            # Adult violations (for window tracking)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS adult_violations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_admin_audit_admin "
-                "ON admin_audit (admin_id, created_at)"
+                "CREATE INDEX IF NOT EXISTS idx_adult_violations_user_time " "ON adult_violations (user_id, created_at)"
             )
             conn.commit()
             logger.info("База данных инициализирована.")

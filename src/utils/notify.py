@@ -49,12 +49,12 @@ def notify_admins(
             else:
                 logger.error(
                     "VK API ошибка при уведомлении админа %d: [%s] %s",
-                    admin_id, e.code, e,
+                    admin_id,
+                    e.code,
+                    e,
                 )
         except Exception as e:
-            logger.exception(
-                "Не удалось уведомить админа %d: %s", admin_id, e
-            )
+            logger.exception("Не удалось уведомить админа %d: %s", admin_id, e)
 
 
 __all__ = ["notify_admins"]

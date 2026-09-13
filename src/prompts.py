@@ -6,7 +6,6 @@
 """
 
 import logging
-from datetime import datetime
 from typing import Final
 
 logger = logging.getLogger(__name__)
@@ -105,32 +104,20 @@ HELP_RESPONSE: Final[str] = (
     "ℹ️ Контакты — связь со мной\n\n"
     "Просто напиши мне что угодно!"
 )
-CONTACTS_RESPONSE: Final[str] = (
-    "Связаться со мной можно через личные сообщения группы. Я всегда на связи! 🐾"
-)
-RESET_RESPONSE: Final[str] = (
-    "🔄 Контекст диалога сброшен! Начинаем с чистого листа."
-)
+CONTACTS_RESPONSE: Final[str] = "Связаться со мной можно через личные сообщения группы. Я всегда на связи! 🐾"
+RESET_RESPONSE: Final[str] = "🔄 Контекст диалога сброшен! Начинаем с чистого листа."
 TOO_LONG_RESPONSE: Final[str] = (
-    "😿 Слишком длинное сообщение! Лимит — {limit} символов. "
-    "Попробуй разбить его на части или сократить."
+    "😿 Слишком длинное сообщение! Лимит — {limit} символов. " "Попробуй разбить его на части или сократить."
 )
 NO_GIGACHAT_RESPONSE: Final[str] = (
-    "Сейчас я не могу поболтать через нейросеть (нет ключа), "
-    "но давай просто поболтаем! Напиши «мяу» или «помощь»."
+    "Сейчас я не могу поболтать через нейросеть (нет ключа), " "но давай просто поболтаем! Напиши «мяу» или «помощь»."
 )
 FALLBACK_RESPONSE: Final[str] = "Что-то пошло не так… Попробуй чуть позже!"
 NO_ANSWER_RESPONSE: Final[str] = "Кажется, нейросеть не ответила. Попробуй ещё раз!"
-SPAM_RESPONSE: Final[str] = (
-    "Мяу... не пиши капсом и не спамь эмодзи. Я пока промолчу 🐱"
-)
+SPAM_RESPONSE: Final[str] = "Мяу... не пиши капсом и не спамь эмодзи. Я пока промолчу 🐱"
 RATE_LIMIT_RESPONSE: Final[str] = "Слишком много сообщений 🐱"
-NOT_UNDERSTOOD_RESPONSE: Final[str] = (
-    "Я не понял: «{text}». Попробуй кнопку «Мяу» или «Помощь»."
-)
-ADULT_BAN_RESPONSE: Final[str] = (
-    "Мяу… ты забанен на 5 минут за 18+ контент. Отдыхай! 🐱"
-)
+NOT_UNDERSTOOD_RESPONSE: Final[str] = "Я не понял: «{text}». Попробуй кнопку «Мяу» или «Помощь»."
+ADULT_BAN_RESPONSE: Final[str] = "Мяу… ты забанен на 5 минут за 18+ контент. Отдыхай! 🐱"
 SIMPLE_RESPONSES: Final[tuple[str, ...]] = (
     "Мяу! Расскажи ещё 🐱",
     "Интересно… продолжай! 🐾",
@@ -138,119 +125,30 @@ SIMPLE_RESPONSES: Final[tuple[str, ...]] = (
     "Хм, любопытно! Что дальше?",
     "Пиши ещё, мне интересно! 🐱",
 )
-ADMIN_REQUEST_NO_ADMINS_RESPONSE: Final[str] = (
-    "Сейчас нет администраторов, которые могут обработать твой запрос."
-)
-ADMIN_REQUEST_SENT_RESPONSE: Final[str] = (
-    "✅ Запрос прав администратора отправлен. Ожидайте ответа."
-)
-ADMIN_REQUEST_NOTIFICATION: Final[str] = (
-    "🔔 Запрос прав администратора\n\n"
-    "От: [id{from_id}|user_id={from_id}]\n"
-    "Текст: «{text}»\n\n"
-    "Чтобы добавить: /admin_add {from_id}"
-)
-ADMIN_HELP_RESPONSE: Final[str] = (
-    "👑 Админ-команды:\n"
-    "/health — проверка GigaChat\n"
-    "/stats — статистика\n"
-    "/admins — список администраторов\n"
-    "/admin_add <id> — добавить администратора\n"
-    "/admin_del <id> — удалить администратора\n"
-    "/delete_db — удалить базу данных\n"
-    "/stop — остановить бота\n"
-    "/restart — перезагрузить бота"
-)
-STATS_RESPONSE: Final[str] = (
-    "📊 Статистика бота\n\n"
-    "💬 Всего сообщений: {total_messages}\n"
-    "🤖 Через LLM (GigaChat): {llm_messages}\n"
-    "⚠️ Ошибок: {errors}\n\n"
-    "Мяу! Всё под контролем. 🐱"
-)
-ADMIN_ADD_USAGE: Final[str] = (
-    "Использование: /admin_add <user_id>\nПример: /admin_add 123456789"
-)
-ADMIN_ADD_SUCCESS: Final[str] = "✅ Администратор добавлен: user_id={user_id}"
-ADMIN_ADD_GRANTED: Final[str] = "✅ Вам выданы права администратора."
-ADMIN_ADD_BLOCKED_NOTICE: Final[str] = (
-    "✅ Администратор добавлен: user_id={user_id}\n"
-    "⚠️ Не удалось отправить уведомление: пользователь не принимает сообщения от группы."
-)
-ADMIN_ADD_ERROR_NOTICE: Final[str] = (
-    "✅ Администратор добавлен: user_id={user_id}\n"
-    "⚠️ Не удалось отправить уведомление: {error}"
-)
-ADMIN_ALREADY_EXISTS: Final[str] = "ℹ️ user_id={user_id} уже является администратором."
-ADMIN_DEL_USAGE: Final[str] = (
-    "Использование: /admin_del <user_id>\nПример: /admin_del 123456789"
-)
-ADMIN_DEL_SUCCESS: Final[str] = "🗑️ Администратор удалён: user_id={user_id}"
-ADMIN_DEL_REVOKED: Final[str] = "ℹ️ Ваши права администратора были отозваны."
-ADMIN_DEL_BLOCKED_NOTICE: Final[str] = (
-    "🗑️ Администратор удалён: user_id={user_id}\n"
-    "⚠️ Не удалось отправить уведомление: пользователь не принимает сообщения от группы."
-)
-ADMIN_DEL_ERROR_NOTICE: Final[str] = (
-    "🗑️ Администратор удалён: user_id={user_id}\n"
-    "⚠️ Не удалось отправить уведомление: {error}"
-)
-ADMIN_NOT_FOUND: Final[str] = "ℹ️ user_id={user_id} не является администратором."
-GIGACHAT_NOT_INITIALIZED: Final[str] = "❌ GigaChat-клиент не инициализирован."
-
-
-# --- Кеширование pytz ---
-_tz = None
-_tz_name: str = "локальное время сервера"
-
-
-def _init_timezone() -> None:
-    """Инициализирует часовую зону один раз при импорте модуля."""
-    global _tz, _tz_name
-    try:
-        import pytz
-        _tz = pytz.timezone("Europe/Moscow")
-        _tz_name = _tz.zone
-    except ImportError:
-        logger.debug("pytz не установлен — используется локальное время сервера.")
-    except Exception:
-        logger.debug("Не удалось инициализировать pytz — используется локальное время сервера.")
-
-
-_init_timezone()
-
-
-def _get_time_context() -> str:
-    """
-    Формирует строку с текущим временем и днём недели для промпта.
-    Часовая зона инициализируется один раз при импорте модуля.
-    """
-    if _tz is not None:
-        now = datetime.now(_tz)
-    else:
-        now = datetime.now()
-
-    hour = now.hour
-    if 5 <= hour < 12:
-        period = "утро"
-    elif 12 <= hour < 18:
-        period = "день"
-    elif 18 <= hour < 23:
-        period = "вечер"
-    else:
-        period = "ночь"
-
-    weekday = _WEEKDAYS_RU.get(now.weekday(), "?")
-    return (
-        f"Сейчас {now.strftime('%H:%M')}, {weekday}. "
-        f"{period.capitalize()}. "
-        f"Часовой пояс: {_tz_name}."
-    )
 
 
 def build_system_prompt() -> str:
-    """
-    Собирает финальный системный промпт с временным контекстом и указанием модели.
-    """
-    time_context = _get_time_context()
-    return f"{BASE_SYSTEM_PROMPT}\n\nКонтекст времени: {time_context}\n\nИспользуемая модель: {MODEL}"
+    """Собирает финальный системный промпт с указанием модели."""
+    return f"{BASE_SYSTEM_PROMPT}\n\nИспользуемая модель: {MODEL}"
+
+
+__all__ = [
+    "MODEL",
+    "build_system_prompt",
+    "SILENT_RESPONSES",
+    "SENSITIVE_TRIGGERS",
+    "CREATOR_REVEAL_PHRASES",
+    "MAX_TOKENS",
+    "TEMPERATURE",
+    "MEOW_RESPONSE",
+    "HELP_RESPONSE",
+    "CONTACTS_RESPONSE",
+    "RESET_RESPONSE",
+    "TOO_LONG_RESPONSE",
+    "NO_GIGACHAT_RESPONSE",
+    "FALLBACK_RESPONSE",
+    "NO_ANSWER_RESPONSE",
+    "NOT_UNDERSTOOD_RESPONSE",
+    "ADULT_BAN_RESPONSE",
+    "SIMPLE_RESPONSES",
+]

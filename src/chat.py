@@ -84,9 +84,7 @@ class GigaChatService:
             save_message(user_id, "user", user_text)
 
             history = load_history(user_id, limit=settings.max_history * 2)
-            messages = [
-                {"role": "system", "content": build_system_prompt()}
-            ] + history
+            messages = [{"role": "system", "content": build_system_prompt()}] + history
 
             payload = {
                 "model": MODEL,
@@ -123,9 +121,7 @@ class GigaChatService:
                 answer = random.choice(SILENT_RESPONSES)
 
             if any(phrase in answer_lower for phrase in CREATOR_REVEAL_PHRASES):
-                logger.warning(
-                    "GigaChat: ответ содержит информацию о создателе — заменяю на заглушку."
-                )
+                logger.warning("GigaChat: ответ содержит информацию о создателе — заменяю на заглушку.")
                 answer = random.choice(SILENT_RESPONSES)
 
             save_message(user_id, "assistant", answer)
@@ -172,6 +168,11 @@ class GigaChatService:
 _service = GigaChatService()
 
 
+def get_gigachat_client() -> GigaChat | None:
+    """Возвращает клиент GigaChat для health-check и других нужд."""
+    return _service.get_client()
+
+
 def get_chat_response(user_id: int, user_text: str) -> str:
     return _service.chat(user_id, user_text)
 
@@ -181,4 +182,4 @@ def clear_history(user_id: int) -> None:
     clear_chat_history(user_id)
 
 
-__all__ = ["GigaChatService", "get_chat_response", "clear_history"]
+__all__ = ["GigaChatService", "get_chat_response", "clear_history", "get_gigachat_client"]

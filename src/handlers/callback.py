@@ -46,7 +46,9 @@ def handle_callback(server: "Bot", event: Any) -> bool:
 
     logger.info(
         "Callback received: peer_id=%s, user_id=%s, callback_data=%s",
-        peer_id, user_id, callback_data,
+        peer_id,
+        user_id,
+        callback_data,
     )
 
     # Обрабатываем админ-команды из инлайн-клавиатуры

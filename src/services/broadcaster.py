@@ -5,8 +5,13 @@ import time
 import logging
 from vk_api.utils import get_random_id
 
-from ..constants import VK_ERROR_RATE_LIMIT, VK_ERROR_USER_BLOCKED, VK_ERROR_MSG_TOO_LONG, VK_ERROR_CHAT_NOT_FOUND
+from ..constants import VK_ERROR_USER_BLOCKED
 from ..db import get_blocked_ids, mark_user_blocked
+
+# VK error codes used only in broadcaster
+VK_ERROR_RATE_LIMIT = 6
+VK_ERROR_MSG_TOO_LONG = 902
+VK_ERROR_CHAT_NOT_FOUND = 214
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +33,7 @@ def broadcast_hello(
     :param max_retries: макс. число повторных попыток для одного пользователя
     :return: (count_sent, count_failed)
     """
-    filtered_ids = [
-        uid for uid in user_ids
-        if isinstance(uid, int) and uid > 0
-    ]
+    filtered_ids = [uid for uid in user_ids if isinstance(uid, int) and uid > 0]
 
     blocked_ids = get_blocked_ids()
     if blocked_ids:
@@ -42,9 +44,7 @@ def broadcast_hello(
             logger.info("Пропущено %d пользователей из игнор-листа.", skipped)
 
     if not filtered_ids:
-        logger.warning(
-            "Список пользователей пуст или все в игнор-листе. Рассылка пропущена."
-        )
+        logger.warning("Список пользователей пуст или все в игнор-листе. Рассылка пропущена.")
         return 0, 0
 
     count_sent = 0
@@ -75,8 +75,7 @@ def broadcast_hello(
                 if vk_error_code == VK_ERROR_RATE_LIMIT:
                     wait_time = 5 * attempt
                     logger.warning(
-                        "Лимит запросов VK API (код %d) на user_id=%d. "
-                        "Попытка %d/%d, ждём %d сек.",
+                        "Лимит запросов VK API (код %d) на user_id=%d. " "Попытка %d/%d, ждём %d сек.",
                         vk_error_code,
                         user_id,
                         attempt,
@@ -89,8 +88,7 @@ def broadcast_hello(
                 # Окончательные ошибки: пользователь недоступен
                 elif vk_error_code in (VK_ERROR_USER_BLOCKED, VK_ERROR_MSG_TOO_LONG, VK_ERROR_CHAT_NOT_FOUND):
                     logger.debug(
-                        "Пользователь user_id=%d недоступен (код %d). "
-                        "Добавляем в игнор-лист.",
+                        "Пользователь user_id=%d недоступен (код %d). " "Добавляем в игнор-лист.",
                         user_id,
                         vk_error_code,
                     )

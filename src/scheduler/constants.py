@@ -6,14 +6,9 @@ from ..constants import (
     SCHEDULER_HEALTH_INTERVAL_MINUTES as DEFAULT_HEALTH_INTERVAL_MINUTES,
     PRUNE_KEEP_RECORDS,
     PRUNE_TIME,
-    BROADCAST_DELAY_SECONDS,
 )
 
-BROADCAST_MESSAGE = (
-    "Про меня забыли((\n"
-    "Мяф((\n"
-    "Пообщаемся?"
-)
+BROADCAST_MESSAGE = "Про меня забыли((\n" "Мяф((\n" "Пообщаемся?"
 
 __all__ = [
     "BROADCAST_MESSAGE",
@@ -21,5 +16,4 @@ __all__ = [
     "DEFAULT_HEALTH_INTERVAL_MINUTES",
     "PRUNE_KEEP_RECORDS",
     "PRUNE_TIME",
-    "BROADCAST_DELAY_SECONDS",
 ]

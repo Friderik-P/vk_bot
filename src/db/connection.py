@@ -41,7 +41,7 @@ class _PooledConnection(AbstractContextManager):
     def __enter__(self) -> sqlite3.Connection:
         return self.conn
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type, _exc_value, _traceback) -> None:
         if exc_type is not None:
             try:
                 self.conn.rollback()
@@ -135,17 +135,9 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA cache_size=-6400")  # ~6 МБ кеш
+        conn.execute("PRAGMA busy_timeout=10000")  # 10 секунд ожидания при блокировке
     except sqlite3.DatabaseError as e:
         logger.warning("Не удалось применить PRAGMA-настройки: %s", e)
-
-
-def _is_connection_valid(conn: sqlite3.Connection) -> bool:
-    """Быстрая проверка: отвечает ли соединение."""
-    try:
-        conn.execute("SELECT 1")
-        return True
-    except Exception:
-        return False
 
 
 def get_connection() -> _PooledConnection:
@@ -183,7 +175,9 @@ def retry_on_lock(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
                 total_wait = delay + jitter
                 logger.warning(
                     "БД заблокирована (попытка %d/%d), жду %.2f с...",
-                    attempt, MAX_RETRIES, total_wait,
+                    attempt,
+                    MAX_RETRIES,
+                    total_wait,
                 )
                 time.sleep(total_wait)
                 delay *= 2
@@ -192,6 +186,7 @@ def retry_on_lock(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
 
     # Недостижимо при MAX_RETRIES >= 1, но защита от MAX_RETRIES = 0
     raise sqlite3.OperationalError("retry_on_lock: MAX_RETRIES исчерпаны")
+
 
 __all__ = [
     "get_connection",

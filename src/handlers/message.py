@@ -5,7 +5,7 @@ import random
 import logging
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..keyboards import get_main_menu_keyboard
 from ..chat import get_chat_response, clear_history
@@ -19,8 +19,6 @@ from ..prompts import (
     NO_GIGACHAT_RESPONSE,
     FALLBACK_RESPONSE,
     NO_ANSWER_RESPONSE,
-    SPAM_RESPONSE,
-    RATE_LIMIT_RESPONSE,
     NOT_UNDERSTOOD_RESPONSE,
     ADULT_BAN_RESPONSE,
     SIMPLE_RESPONSES,
@@ -35,9 +33,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SIMPLE_TRIGGERS = {
-    "привет", "хай", "здравствуй", "ку", "йо",
-    "пока", "досвидания", "спасибо", "благодарю",
-    "какдела", "чкокак", "чтонового",
+    "привет",
+    "хай",
+    "здравствуй",
+    "ку",
+    "йо",
+    "пока",
+    "досвидания",
+    "спасибо",
+    "благодарю",
+    "какдела",
+    "чкокак",
+    "чтонового",
 }
 
 
@@ -49,8 +56,50 @@ def _is_simple_trigger(text: str) -> bool:
 # Защита от переназначения имён: пользователь, давший боту новое имя,
 # не может спрашивать "кто создал <новое_имя>?" в течение 5 минут.
 _NAME_REASSIGNMENT_WINDOW_SECONDS = 300
-_name_reassignment_tracker: dict[int, tuple[str, float]] = {}
+_name_reassignment_tracker: dict[int, tuple[str | None, float]] = {}
 _name_reassignment_lock = threading.Lock()
+
+
+_SIMPLE_NAME_PATTERNS = (
+    "зови тебя",
+    "зови вас",
+    "твоё имя",
+    "ваше имя",
+    "твое имя",
+    "тебя зови",
+    "вас зови",
+    "зовут тебя",
+    "зовут вас",
+    "имя тебе",
+    "имя вам",
+    "назови себя",
+    "назовитесь",
+    "представься",
+    "представьтесь",
+    "твоё новое имя",
+    "твое новое имя",
+    "новое имя",
+)
+
+_CREATOR_PATTERNS = (
+    "кто создал",
+    "кто разработал",
+    "кто сделал",
+    "кто написал",
+    "кто автор",
+    "кто хозяин",
+    "кто владелец",
+    "кто заказал",
+    "кто купил",
+    "кто воспитал",
+    "кто папа",
+    "кто отец",
+    "кто мама",
+    "кто мать",
+    "кто родители",
+    "кто админ",
+    "кто начальник",
+)
 
 
 def _is_name_reassignment(text: str) -> tuple[bool, str | None]:
@@ -59,32 +108,11 @@ def _is_name_reassignment(text: str) -> tuple[bool, str | None]:
     Возвращает (True, new_name) или (False, None).
     """
     text_lower = text.lower()
-    patterns = (
-        "зови тебя",
-        "зови вас",
-        "твоё имя",
-        "ваше имя",
-        "твое имя",
-        "ваше имя",
-        "тебя зови",
-        "вас зови",
-        "зовут тебя",
-        "зовут вас",
-        "имя тебе",
-        "имя вам",
-        "назови себя",
-        "назовитесь",
-        "представься",
-        "представьтесь",
-        "твоё новое имя",
-        "твое новое имя",
-        "новое имя",
-    )
-    for pattern in patterns:
+    for pattern in _SIMPLE_NAME_PATTERNS:
         if pattern in text_lower:
             # Пытаемся извлечь новое имя после паттерна
             idx = text_lower.find(pattern)
-            after = text_lower[idx + len(pattern):].strip()
+            after = text_lower[idx + len(pattern) :].strip()
             # Берём первые 1-3 слова как потенциальное имя
             words = after.split()[:3]
             candidate = " ".join(words).strip("!?.,\"'«»")
@@ -107,33 +135,16 @@ def _check_name_reassignment_attack(from_id: int, text: str) -> bool:
                 old_name, ts = _name_reassignment_tracker[from_id]
                 if time.time() - ts > _NAME_REASSIGNMENT_WINDOW_SECONDS:
                     del _name_reassignment_tracker[from_id]
-                else:
+                elif old_name is not None:
                     text_lower = text.lower()
-                    creator_patterns = (
-                        "кто создал",
-                        "кто разработал",
-                        "кто сделал",
-                        "кто написал",
-                        "кто автор",
-                        "кто хозяин",
-                        "кто владелец",
-                        "кто заказал",
-                        "кто купил",
-                        "кто воспитал",
-                        "кто папа",
-                        "кто отец",
-                        "кто мама",
-                        "кто мать",
-                        "кто родители",
-                        "кто админ",
-                        "кто начальник",
-                    )
-                    for pattern in creator_patterns:
+                    for pattern in _CREATOR_PATTERNS:
                         if pattern in text_lower:
                             if old_name in text_lower or old_name.lower() in text_lower:
                                 logger.warning(
                                     "NAME_REASSIGNMENT_ATTACK user_id=%d name=%s text=%s",
-                                    from_id, old_name, text[:100],
+                                    from_id,
+                                    old_name,
+                                    text[:100],
                                 )
                                 return True
         return False
@@ -144,30 +155,13 @@ def _check_name_reassignment_attack(from_id: int, text: str) -> bool:
 
     # Если в том же сообщении есть вопрос о создателе — блокируем
     text_lower = text.lower()
-    creator_patterns = (
-        "кто создал",
-        "кто разработал",
-        "кто сделал",
-        "кто написал",
-        "кто автор",
-        "кто хозяин",
-        "кто владелец",
-        "кто заказал",
-        "кто купил",
-        "кто воспитал",
-        "кто папа",
-        "кто отец",
-        "кто мама",
-        "кто мать",
-        "кто родители",
-        "кто админ",
-        "кто начальник",
-    )
-    for pattern in creator_patterns:
+    for pattern in _CREATOR_PATTERNS:
         if pattern in text_lower:
             logger.warning(
                 "NAME_REASSIGNMENT_ATTACK user_id=%d name=%s text=%s",
-                from_id, new_name, text[:100],
+                from_id,
+                new_name,
+                text[:100],
             )
             return True
     return False
@@ -184,8 +178,8 @@ def handle_message(server: "Bot", event: Any) -> bool:
     peer_id = getattr(message, "peer_id", None)
     from_id = getattr(message, "from_id", None) or peer_id
 
-    if peer_id is None:
-        logger.warning("Не удалось определить peer_id для сообщения")
+    if peer_id is None or from_id is None:
+        logger.warning("Не удалось определить peer_id или from_id для сообщения")
         return False
 
     keyboard = get_main_menu_keyboard()
@@ -292,10 +286,10 @@ def handle_message(server: "Bot", event: Any) -> bool:
         return True
 
     try:
+        increment_stats(llm=1)
         answer = get_chat_response(from_id, text)
         if not answer:
             answer = NO_ANSWER_RESPONSE
-        increment_stats(llm=1)
     except Exception:
         logger.exception("Ошибка при вызове get_chat_response для user_id=%d", from_id)
         increment_stats(errors=1)

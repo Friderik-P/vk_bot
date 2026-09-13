@@ -19,7 +19,7 @@ _shutdown_event = threading.Event()
 
 
 def setup_logging():
-    """Настраивает логирование: в файлы (в папке logs/) + в консоль."""
+    """Настраивает консольное логирование (логирование в файл добавляется отдельно в setup_file_logging)."""
     root_logger = logging.getLogger()
 
     if root_logger.handlers:
@@ -104,7 +104,7 @@ def _shutdown(signum=None, frame=None):
             sig_name = signal.Signals(signum).name
         except ValueError:
             sig_name = f"сигнал {signum}"
-        logger.info("Получен сигнал %s. Останавливаюсь... Мяу 🐱", sig_name)
+        logger.info("Получен сигнал %s. Останавливаюсь...", sig_name)
 
 
 def main():
@@ -124,7 +124,8 @@ def main():
         init_admins_yaml()
 
         signal.signal(signal.SIGINT, _shutdown)
-        signal.signal(signal.SIGTERM, _shutdown)
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, _shutdown)
 
         logger.info("Запуск VK-бота (Server)...")
         bot = Server(
@@ -140,7 +141,7 @@ def main():
             python = sys.executable
             os.execl(python, python, *sys.argv)
 
-        logger.info("Бот завершил работу. Мяу! 🐱")
+        logger.info("Бот завершил работу.")
     except RuntimeError as e:
         logger.critical("Ошибка конфигурации: %s", e, exc_info=True)
         sys.exit(1)

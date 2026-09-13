@@ -3,7 +3,7 @@
 
 import pytest
 
-from src.filters.adult import is_adult_content, is_adult_content_soft, ADULT_KEYWORDS, ADULT_PHRASES
+from src.filters.adult import is_adult_content, ADULT_KEYWORDS, ADULT_PHRASES
 
 
 class TestIsAdultContent:
@@ -39,13 +39,3 @@ class TestIsAdultContent:
         """Префиксные совпадения для слов из ADULT_KEYWORDS."""
         # Порноxxx должно сработать, если есть префикс "порно"
         assert is_adult_content("порноhub") is True
-
-
-class TestIsAdultContentSoft:
-    """Тесты is_adult_content_soft."""
-
-    def test_soft_keyword_triggered(self) -> None:
-        assert is_adult_content_soft("член") is True
-
-    def test_soft_keyword_not_in_clean(self) -> None:
-        assert is_adult_content_soft("привет") is False

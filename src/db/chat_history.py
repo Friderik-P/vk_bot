@@ -21,16 +21,10 @@ def save_message(user_id: int, role: str, content: str) -> None:
 
     def _save():
         with get_connection() as conn:
-            cur = conn.execute(
-                "SELECT COUNT(*) FROM chat_history WHERE user_id = ?",
-                (user_id,)
-            )
+            cur = conn.execute("SELECT COUNT(*) FROM chat_history WHERE user_id = ?", (user_id,))
             count = cur.fetchone()[0]
 
-            conn.execute(
-                "INSERT INTO chat_history (user_id, role, content) VALUES (?, ?, ?)",
-                (user_id, role, content)
-            )
+            conn.execute("INSERT INTO chat_history (user_id, role, content) VALUES (?, ?, ?)", (user_id, role, content))
 
             if count + 1 > settings.max_history_per_user:
                 conn.execute(
@@ -44,7 +38,7 @@ def save_message(user_id: int, role: str, content: str) -> None:
                           LIMIT ?
                       )
                     """,
-                    (user_id, user_id, settings.max_history_per_user)
+                    (user_id, user_id, settings.max_history_per_user),
                 )
 
             conn.commit()
@@ -66,13 +60,10 @@ def load_history(user_id: int, limit: int = 20) -> list[dict]:
     def _load():
         with get_connection() as conn:
             cur = conn.execute(
-                "SELECT role, content FROM chat_history "
-                "WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-                (user_id, limit)
+                "SELECT role, content FROM chat_history " "WHERE user_id = ? ORDER BY id DESC LIMIT ?", (user_id, limit)
             )
             rows = cur.fetchall()
-            return [{"role": row["role"], "content": row["content"]}
-                    for row in reversed(rows)]
+            return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
 
     try:
         return retry_on_lock(_load)
@@ -86,10 +77,7 @@ def clear_chat_history(user_id: int) -> None:
 
     def _clear():
         with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM chat_history WHERE user_id = ?",
-                (user_id,)
-            )
+            conn.execute("DELETE FROM chat_history WHERE user_id = ?", (user_id,))
             conn.commit()
 
     try:
@@ -121,7 +109,7 @@ def prune_all_history(keep: int = 500) -> None:
                     ) WHERE rn <= ?
                 )
                 """,
-                (keep,)
+                (keep,),
             )
             conn.commit()
             logger.info("Массовая очистка истории выполнена (оставлено по %d записей).", keep)
