@@ -7,9 +7,12 @@ from .constants import BROADCAST_MESSAGE, DEFAULT_DELAY_SECONDS, PRUNE_KEEP_RECO
 
 logger = logging.getLogger(__name__)
 
+# Состояние для динамического backoff health-check
+_next_health_interval_minutes: int | None = None
+
 
 def job_broadcast(vk_api_instance, peer_ids_func, delay_seconds: float = DEFAULT_DELAY_SECONDS):
-    """Рассылает сообщение всем активным пользователям."""
+    """Рассылает сообщения всем активным пользователям."""
     try:
         peer_ids = peer_ids_func()
         if not peer_ids:
@@ -33,15 +36,19 @@ def job_health(vk_api_instance, chat_client, admin_ids):
     try:
         if chat_client is None:
             logger.debug("[Health] chat_client не передан — пропускаю проверку.")
+            reset_health_interval()
             return
 
         from ..services import run_health_check
 
-        run_health_check(
+        next_interval = run_health_check(
             chat_client=chat_client,
             vk_api=vk_api_instance,
             admin_ids=admin_ids or [],
         )
+        # Сохраняем следующий интервал для планировщика
+        global _next_health_interval_minutes
+        _next_health_interval_minutes = next_interval
     except Exception:
         logger.exception("[Scheduler] Ошибка в job_health")
 
@@ -60,4 +67,15 @@ def job_prune():
         logger.exception("[Scheduler] Ошибка в job_prune")
 
 
-__all__ = ["job_broadcast", "job_health", "job_prune"]
+def get_next_health_interval() -> int | None:
+    """Возвращает следующий интервал health-check из backoff-логики."""
+    return _next_health_interval_minutes
+
+
+def reset_health_interval() -> None:
+    """Сбрасывает backoff на базовый интервал."""
+    global _next_health_interval_minutes
+    _next_health_interval_minutes = None
+
+
+__all__ = ["job_broadcast", "job_health", "job_prune", "get_next_health_interval", "reset_health_interval"]

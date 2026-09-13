@@ -98,8 +98,10 @@ class SpamTracker:
                 self._ratelimit_data[user_id].clear()
             return False
 
-    def ban_for_spam(self, user_id: int, minutes: int = settings.spam_ban_minutes) -> None:
+    def ban_for_spam(self, user_id: int, minutes: int | None = None) -> None:
         """Принудительно банит пользователя за спам на указанное время."""
+        if minutes is None:
+            minutes = settings.spam_ban_minutes
         with self._lock:
             self._maybe_cleanup()
             self._spam_bans[user_id] = datetime.now() + timedelta(minutes=minutes)
@@ -165,7 +167,9 @@ def is_spam_banned(user_id: int) -> bool:
     return _tracker.is_spam_banned(user_id)
 
 
-def ban_for_spam(user_id: int, minutes: int = settings.spam_ban_minutes) -> None:
+def ban_for_spam(user_id: int, minutes: int | None = None) -> None:
+    if minutes is None:
+        minutes = settings.spam_ban_minutes
     _tracker.ban_for_spam(user_id, minutes)
 
 

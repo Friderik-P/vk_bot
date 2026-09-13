@@ -3,6 +3,7 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -73,23 +74,33 @@ class AdminStore:
         return True
 
 
-_store = AdminStore(settings.base_dir / "admins.yaml")
+_store: Optional[AdminStore] = None
+_yaml_path: Optional[Path] = None
+
+
+def _get_store() -> AdminStore:
+    """Лениво создаёт и возвращает глобальный экземпляр AdminStore."""
+    global _store, _yaml_path
+    if _store is None:
+        _yaml_path = settings.base_dir / "admins.yaml"
+        _store = AdminStore(_yaml_path)
+    return _store
 
 
 def init_admins_yaml() -> None:
-    _store.init(settings.admin_ids)
+    _get_store().init(settings.admin_ids)
 
 
 def get_admins() -> set[int]:
-    return _store.get_all()
+    return _get_store().get_all()
 
 
 def add_admin(user_id: int) -> bool:
-    return _store.add(user_id)
+    return _get_store().add(user_id)
 
 
 def remove_admin(user_id: int) -> bool:
-    return _store.remove(user_id)
+    return _get_store().remove(user_id)
 
 
 __all__ = ["AdminStore", "init_admins_yaml", "get_admins", "add_admin", "remove_admin"]

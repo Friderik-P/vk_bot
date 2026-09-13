@@ -32,8 +32,8 @@ class TestIsAdultContent:
         assert is_adult_content("ПорНо") is True
 
     def test_obfuscation(self) -> None:
-        """Обфускация через пробелы/дублирование не должна срабатывать."""
-        assert is_adult_content("п о р н о") is False
+        """Обфускация через пробелы: после удаления пробелов должно сработать."""
+        assert is_adult_content("п о р н о") is True
 
     def test_prefix_match(self) -> None:
         """Префиксные совпадения для слов из ADULT_KEYWORDS."""
