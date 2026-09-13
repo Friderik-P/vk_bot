@@ -1,6 +1,6 @@
 ﻿# VK Bot: бот для ВКонтакте с GigaChat
 
-**Версия:** `0.0.1`
+**Версия:** `0.0.2`
 
 Умный бот для сообщества ВКонтакте: рассылка, проверка доступности GigaChat, антиспам, ведение истории диалогов и еженедельная очистка старых сообщений.
 
@@ -10,10 +10,12 @@
 - **Рассылка сообщений**: автоматическая по расписанию, с учётом игнор‑листа и лимитов VK API.
 - **Антиспам и фильтрация**: проверка на запрещённый контент, ограничение частоты сообщений, бан за спам.
 - **18+ фильтр**: жёсткий и мягкий уровни, блокировка до LLM, автоматический бан на 5 минут при 3 нарушениях, поддержка транслитерации и обхода пробелов.
-- **Контекстный фильтр**: запрещённые темы (наркотики, война, психотропы, химия), ответ без бана, только лог.
+- **Контекстный фильтр**: запрещённые темы (наркотики, война, психотропы, химия, создатель, Сбер, ГигаЧат), ответ без бана, только лог.
 - **История диалогов**: сохранение переписки, статистика, еженедельная очистка по лимиту записей.
-- **Админ‑панель**: команды `/health`, уведомления, управление состоянием.
+- **Админ‑панель**: команды `/health`, `/stats`, `/admins`, `/admin_add`, `/admin_del`, `/stop`, `/restart`, audit log.
 - **Планировщик задач**: фоновый поток с расписанием (рассылка, health‑check, очистка истории).
+- **Graceful shutdown**: корректное завершение по SIGINT/SIGTERM с закрытием соединений.
+- **Защита от переназначения имён**: детектор атак вида "зови тебя X" + "кто создал X?".
 
 ## 🗂 Структура проекта
 
@@ -23,35 +25,39 @@ vk_bot/
 ├── .gitignore              # Игнорируемые файлы
 ├── main.py                 # Точка входа
 ├── requirements.txt        # Зависимости (runtime + dev)
-├── admins.yaml             # Файл с администраторами
+├── admins.yaml             # Файл с администраторами (создаётся автоматически)
 ├── .github                 # Шаблоны GitHub
 │   ├── ISSUE_TEMPLATE/      # Шаблоны для Issues (bug_report, feature_request, question)
 │   └── pull_request_template.md # Шаблон для Pull Request
 │
 └── src/
     ├── __init__.py         # Публичный интерфейс пакета src
-    ├── config.py           # Чтение и валидация .env (VK_API_TOKEN, GIGACHAT_AUTH_KEY и др.)
-    ├── prompts.py          # Промпты, заглушки, параметры моделей (включая MODEL)
+    ├── config.py           # Чтение и валидация .env (Settings dataclass)
+    ├── constants.py        # Общие константы (VK коды, таймауты, лимиты)
+    ├── prompts.py          # Промпты, заглушки, параметры моделей
     ├── chat.py             # Логика запросов к GigaChat, обработка ошибок
     ├── server.py           # Long Poll, маршрутизация, антиспам, админ‑команды
     ├── admins.py           # Хранение и управление списком администраторов
+    ├── utils/              # Утилиты (уведомление админов)
+    │   └── notify.py       # notify_admins() — единый способ уведомления админов
     │
     ├── db/                 # Работа с SQLite
     │   ├── __init__.py      # Реэкспорт функций БД
-    │   ├── connection.py    # Thread-local SQLite, retry_on_lock, close_all_connections
+    │   ├── connection.py    # ConnectionPool с threading.Condition, retry_on_lock
     │   ├── schema.py        # Создание таблиц и индексов (init_db)
     │   ├── users.py         # load_peer_ids, add_peer_id, mark_user_blocked, get_blocked_ids
     │   ├── chat_history.py  # save_message, load_history, clear_chat_history, prune_all_history
     │   ├── stats.py         # increment_stats, get_stats
-    │   └── spam.py          # check_ratelimit, is_spam_banned, ban_for_spam, analyze_message_for_spam
+    │   ├── spam.py          # SpamTracker: check_ratelimit, is_spam_banned, ban_for_spam, adult violations
+    │   └── admin_audit.py   # log_admin_action, get_admin_audit — audit log для админ-действий
     │
     ├── filters/            # Фильтры контента и нормализация текста
-    │   ├── __init__.py      # Экспорт is_adult_content, is_adult_content_soft, is_context_blocked, normalize_text, deobfuscate, transliterate_to_cyrillic и др.
+    │   ├── __init__.py      # Экспорт is_adult_content, is_adult_content_soft, is_context_blocked, normalize_text, deobfuscate, transliterate_to_cyrillic
     │   ├── adult.py         # is_adult_content, списки слов и ответов
     │   ├── adult_config.yaml # Конфигурация 18+ фильтра
     │   ├── context.py       # is_context_blocked, CONTEXT_RESPONSES
     │   ├── context_config.yaml # Конфигурация контекстного фильтра
-    │   ├── spam.py          # Реэкспорт analyze_message_for_spam из db/spam.py
+    │   ├── spam.py          # analyze_message_for_spam
     │   └── utils.py         # normalize_text, deobfuscate, transliterate_to_cyrillic
     │
     ├── keyboards/           # Клавиатуры VK
@@ -77,11 +83,11 @@ vk_bot/
         ├── constants.py     # BROADCAST_MESSAGE, интервалы, PRUNE_TIME, PRUNE_KEEP_RECORDS
         ├── jobs.py          # job_broadcast, job_health, job_prune
         └── runner.py        # start_scheduler — запуск фонового потока с задачами
-│
+  │
 └── logs/                   # Логи (создаются автоматически при старте)
     ├── bot.info.log        # Информационные логи
     └── bot.error.log       # Логи ошибок
-```
+  ```
 
 ## 🚀 Быстрый старт
 
@@ -111,10 +117,20 @@ pip install -r requirements.txt
 VK_API_TOKEN=ваш_токен_сообщества
 VK_GROUP_ID=id_группы
 GIGACHAT_AUTH_KEY=Bearer ваш_ключ_GigaChat
-LOG_DIR=logs
-DB_FILE=vk_bot.db
 ADMIN_IDS=000000000,000000000
 SERVER_NAME=MyVKBot
+DB_FILE=bot.db
+LOG_DIR=logs
+MAX_HISTORY_PER_USER=500
+MAX_MESSAGE_LENGTH=2000
+SPAM_BAN_MINUTES=5
+ADULT_BAN_MINUTES=5
+ADULT_VIOLATION_LIMIT=3
+ADULT_VIOLATION_WINDOW_MINUTES=30
+GIGACHAT_TIMEOUT_SECONDS=15
+MAX_HISTORY=50
+RATE_LIMIT_COUNT=20
+RATE_LIMIT_MINUTES=5
 ```
 
 ### 4. Инициализация БД и запуск
@@ -169,15 +185,16 @@ python main.py
 
 - `/health` — ручная проверка доступности GigaChat и вывод статуса.
 - `/stats` — статистика бота.
-- `/admins` — список администраторов.
-- `/admin_add <id>` — добавить администратора.
-- `/admin_del <id>` — удалить администратора.
-- `/delete_db` — удалить базу данных.
-- `/stop` — остановить бота.
-- `/restart` — перезагрузить бота.
+- `/admins` — список администраторов с кликабельными ссылками на профили VK.
+- `/admin_add <id>` — добавить администратора (с проверкой диапазона 1..9999999999).
+- `/admin_del <id>` — удалить администратора (с проверкой диапазона).
+- `/stop` — остановить бота (graceful shutdown).
+- `/restart` — перезагрузить бота (с сохранением состояния).
 - `/help` — расширенная справка с админ-командами.
 
 При изменении статуса бот автоматически уведомляет всех админов из `ADMIN_IDS`.
+
+Все админ-действия логируются в таблицу `admin_audit` с `admin_id`, `peer_id` и временем.
 
 ## 📢 Рассылка сообщений
 
@@ -185,16 +202,16 @@ python main.py
 
 **Параметры:**
 - Сообщение по умолчанию: `"Про меня забыли((\nМяф((\nПообщаемся?"` (можно изменить в `src/scheduler/constants.py`)
-- Пауза между отправками: `0.2` сек (настраивается через `DEFAULT_DELAY_SECONDS`)
-- Максимум повторных попыток на одного пользователя: `2` (при ошибке лимита VK API код 6)
-- Игнор-лист: пользователи с кодом ошибки `901`, `902`, `214` помечаются в БД как заблокированные и пропускаются в следующих рассылках
+- Пауза между отправками: `0.2` сек (настраивается через `BROADCAST_DELAY_SECONDS` в `src/constants.py`)
+- Максимум повторных попыток на одного пользователя: `2` (при ошибке лимита VK API код `VK_ERROR_RATE_LIMIT`)
+- Игнор-лист: пользователи с кодом ошибки `VK_ERROR_USER_BLOCKED`, `VK_ERROR_MSG_TOO_LONG`, `VK_ERROR_CHAT_NOT_FOUND` помечаются в БД как заблокированные и пропускаются в следующих рассылках
 
 **Логика:**
 1. Получает список всех пользователей из БД.
 2. Исключает заблокированных (`mark_user_blocked`).
 3. Отправляет сообщение каждому пользователю через `vk_api.messages.send`.
-4. При ошибке `rate limit` (код 6) — ждёт `5 * attempt` секунд и повторяет.
-5. При ошибке `901/902/214` — добавляет в игнор-лист и пропускает.
+4. При ошибке `rate limit` (код `VK_ERROR_RATE_LIMIT`) — ждёт `5 * attempt` секунд и повторяет.
+5. При ошибках `VK_ERROR_USER_BLOCKED`/`VK_ERROR_MSG_TOO_LONG`/`VK_ERROR_CHAT_NOT_FOUND` — добавляет в игнор-лист и пропускает.
 6. Возвращает `(count_sent, count_failed)`.
 
 ## 📅 Расписание задач (планировщик)
@@ -205,7 +222,7 @@ python main.py
 
 - **Рассылка** — каждые 24 часа (`job_broadcast`)
   - Вызывает `broadcast_hello()` с текстом из `BROADCAST_MESSAGE`.
-  - Пауза между сообщениями: `DEFAULT_DELAY_SECONDS = 0.2` сек.
+  - Пауза между сообщениями: `BROADCAST_DELAY_SECONDS = 0.2` сек (настраивается через `src/constants.py`).
   - Пропускает заблокированных пользователей.
 
 - **Health‑check GigaChat** — каждые 10 минут (`job_health`, настраивается через `health_interval_minutes`)
@@ -216,13 +233,13 @@ python main.py
   - Вызывает `prune_all_history(keep=PRUNE_KEEP_RECORDS)`.
   - Оставляет последние `500` записей на пользователя (настраивается через `PRUNE_KEEP_RECORDS`).
 
-### Константы (`src/scheduler/constants.py`):
+### Константы:
 
 | Константа | Значение | Назначение |
 | --- | --- | --- |
 | `BROADCAST_MESSAGE` | `"Про меня забыли((\nМяф((\nПообщаемся?"` | Текст рассылки |
-| `DEFAULT_DELAY_SECONDS` | `0.2` | Пауза между сообщениями в рассылке |
-| `DEFAULT_HEALTH_INTERVAL_MINUTES` | `10` | Интервал health-check |
+| `BROADCAST_DELAY_SECONDS` | `0.2` | Пауза между сообщениями в рассылке |
+| `SCHEDULER_HEALTH_INTERVAL_MINUTES` | `10` | Интервал health-check |
 | `PRUNE_KEEP_RECORDS` | `500` | Сколько записей истории оставлять на пользователя |
 | `PRUNE_TIME` | `"03:00"` | Время очистки истории |
 
@@ -278,15 +295,20 @@ mypy src/
 
 **Runtime:**
 
-- `vk-api` — работа с API ВКонтакте.
-- `gigachat` — клиент для GigaChat.
-- `pytz` — работа с часовыми поясами.
-- `schedule` — планировщик задач.
-- `python-dotenv` — загрузка переменных из `.env`.
+- `vk-api>=11.10.1` — работа с API ВКонтакте.
+- `gigachat>=0.2.3` — клиент для GigaChat.
+- `pytz>=2026.3.post1` — работа с часовыми поясами.
+- `schedule>=1.2.2` — планировщик задач.
+- `python-dotenv>=1.2.3` — загрузка переменных из `.env`.
+- `pyyaml>=6.0.2` — работа с YAML-конфигами.
+- `httpx>=0.27.0` — HTTP-клиент для GigaChat.
 
 **Dev:**
 
-- `pytest`, `black`, `flake8`, `mypy` — тестирование, форматирование, линтинг, статическая типизация.
+- `pytest>=8.3.2`, `pytest-cov>=5.0.0` — тестирование и coverage.
+- `black>=24.8.0` — форматирование кода.
+- `flake8>=7.2.0` — линтинг.
+- `mypy>=1.14.0` — статическая типизация.
 
 ## 🧩 Использование
 

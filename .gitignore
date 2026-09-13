@@ -4,6 +4,9 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.local
+.env.*.local
+*.env
 *.db
 *.db-wal
 *.db-shm
@@ -17,5 +20,6 @@ logs/
 dist/
 build/
 *.egg-info/
+secrets/
 admins.yaml
 wiki/

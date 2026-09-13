@@ -1,12 +1,12 @@
-# Security Policy
+# Политика безопасности
 
-## Supported Versions
+## Поддерживаемые версии
 
-| Version | Supported          |
+| Версия | Поддержка          |
 | ------- | ------------------ |
 | 0.0.x   | :white_check_mark: |
 
-## Reporting a Vulnerability
+## Сообщение об уязвимости
 
 Если вы нашли уязвимость в безопасности проекта, сообщите о ней через Issue с меткой `security`.
 

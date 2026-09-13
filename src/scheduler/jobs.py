@@ -58,3 +58,6 @@ def job_prune():
         )
     except Exception:
         logger.exception("[Scheduler] Ошибка в job_prune")
+
+
+__all__ = ["job_broadcast", "job_health", "job_prune"]

@@ -4,7 +4,7 @@
 import logging
 
 from .connection import get_connection, retry_on_lock
-from ..config import MAX_HISTORY_PER_USER
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def save_message(user_id: int, role: str, content: str) -> None:
                 (user_id, role, content)
             )
 
-            if count + 1 > MAX_HISTORY_PER_USER:
+            if count + 1 > settings.max_history_per_user:
                 conn.execute(
                     """
                     DELETE FROM chat_history
@@ -44,7 +44,7 @@ def save_message(user_id: int, role: str, content: str) -> None:
                           LIMIT ?
                       )
                     """,
-                    (user_id, user_id, MAX_HISTORY_PER_USER)
+                    (user_id, user_id, settings.max_history_per_user)
                 )
 
             conn.commit()
@@ -130,3 +130,6 @@ def prune_all_history(keep: int = 500) -> None:
         retry_on_lock(_prune)
     except Exception as e:
         logger.exception("Ошибка массовой очистки истории: %s", e)
+
+
+__all__ = ["save_message", "load_history", "clear_chat_history", "prune_all_history"]

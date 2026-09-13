@@ -51,11 +51,16 @@ def is_context_blocked(text: str) -> bool:
     # Проверяем оба варианта: исходный и транслитерированный (лат→кир)
     for check_text in (normalized, transliterate_to_cyrillic(normalized)):
         for phrase in CONTEXT_PHRASES:
-            if phrase in check_text:
+            normalized_phrase = normalize_text(phrase)
+            if not normalized_phrase:
+                continue
+            if normalized_phrase in check_text:
                 return True
-            # Учёт обхода без пробелов (например, "наркотики" → "наркотики")
-            compact_phrase = phrase.replace(" ", "")
+            compact_phrase = normalized_phrase.replace(" ", "")
             if compact_phrase and compact_phrase in check_text.replace(" ", ""):
                 return True
 
     return False
+
+
+__all__ = ["is_context_blocked", "CONTEXT_PHRASES", "CONTEXT_RESPONSES"]

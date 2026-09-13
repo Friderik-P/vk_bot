@@ -71,3 +71,6 @@ def get_stats() -> dict:
     except Exception as e:
         logger.exception("Ошибка чтения статистики: %s", e)
         return {"total_messages": 0, "llm_messages": 0, "errors": 0}
+
+
+__all__ = ["increment_stats", "get_stats"]

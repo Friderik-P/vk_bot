@@ -76,3 +76,6 @@ def start_scheduler(
 
     thread = threading.Thread(target=_run, daemon=True, name="scheduler-loop")
     thread.start()
+
+
+__all__ = ["start_scheduler"]

@@ -24,8 +24,10 @@ def get_admin_help_inline_keyboard():
     keyboard.add_button(label="/admin_add", payload={"command": "/admin_add"})
     keyboard.add_button(label="/admin_del", payload={"command": "/admin_del"})
     keyboard.add_line()
-    keyboard.add_button(label="/delete_db", payload={"command": "/delete_db"})
     keyboard.add_button(label="/stop", payload={"command": "/stop"})
     keyboard.add_line()
     keyboard.add_button(label="/restart", payload={"command": "/restart"})
     return keyboard.get_keyboard()
+
+
+__all__ = ["get_inline_keyboard", "get_admin_help_inline_keyboard"]

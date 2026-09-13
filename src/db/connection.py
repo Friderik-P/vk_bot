@@ -1,28 +1,131 @@
 # vk_bot/src/db/connection.py
-"""Управление thread-local соединениями SQLite и ретраи при блокировках."""
+"""Пул SQLite-соединений и ретраи при блокировках."""
 
+import logging
+import random
 import sqlite3
 import threading
 import time
-import random
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Callable
-import logging
 
-from ..config import DB_FILE
+from ..config import settings
+from ..constants import (
+    DB_CONNECTION_POOL_MAX_SIZE,
+    DB_RETRY_MAX_ATTEMPTS,
+    DB_RETRY_BASE_DELAY,
+)
 
 logger = logging.getLogger(__name__)
 
-# Абсолютный путь к БД — защита от разных рабочих директорий (systemd, cron)
-DB_PATH = Path(DB_FILE).resolve()
+MAX_RETRIES = DB_RETRY_MAX_ATTEMPTS
+RETRY_DELAY = DB_RETRY_BASE_DELAY
+MAX_POOL_SIZE = DB_CONNECTION_POOL_MAX_SIZE
 
-_local = threading.local()
-# Хранилище созданных соединений: id(conn) -> conn (для O(1) удаления)
-_all_connections: dict[int, sqlite3.Connection] = {}
-_all_lock = threading.Lock()
+_pool: ConnectionPool | None = None
 
-MAX_RETRIES = 3
-RETRY_DELAY = 0.5  # базовая задержка, удваивается + джиттер
+
+def get_db_path() -> Path:
+    """Возвращает абсолютный путь к файлу БД (лениво, после загрузки конфига)."""
+    return Path(settings.db_file).resolve()
+
+
+class _PooledConnection(AbstractContextManager):
+    """Контекстный менеджер, возвращающий соединение в пул после использования."""
+
+    def __init__(self, pool: "ConnectionPool", conn: sqlite3.Connection):
+        self.pool = pool
+        self.conn = conn
+
+    def __enter__(self) -> sqlite3.Connection:
+        return self.conn
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if exc_type is not None:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+        self.pool.put(self.conn)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.conn, name)
+
+
+class ConnectionPool:
+    """Ограниченный пул SQLite-соединений для многопоточной работы."""
+
+    def __init__(self, db_path: Path, max_size: int = MAX_POOL_SIZE):
+        self.db_path = db_path
+        self.max_size = max_size
+        self._available: list[sqlite3.Connection] = []
+        self._in_use: set[sqlite3.Connection] = set()
+        self._created = 0
+        self._condition = threading.Condition()
+
+    def _create(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(
+            str(self.db_path),
+            timeout=10.0,
+            check_same_thread=False,
+        )
+        conn.row_factory = sqlite3.Row
+        _apply_pragmas(conn)
+        return conn
+
+    def get(self) -> _PooledConnection:
+        """Возвращает соединение из пула, создавая новое при необходимости."""
+        with self._condition:
+            while True:
+                if self._available:
+                    conn = self._available.pop()
+                    self._in_use.add(conn)
+                    return _PooledConnection(self, conn)
+                if self._created < self.max_size:
+                    conn = self._create()
+                    self._created += 1
+                    self._in_use.add(conn)
+                    logger.debug(
+                        "Создано SQLite-соединение (пул: %d/%d)",
+                        self._created,
+                        self.max_size,
+                    )
+                    return _PooledConnection(self, conn)
+                self._condition.wait()
+
+    def put(self, conn: sqlite3.Connection) -> None:
+        """Возвращает соединение в пул и будит ожидающих потоков."""
+        with self._condition:
+            self._in_use.discard(conn)
+            self._available.append(conn)
+            self._condition.notify_all()
+
+    def close_all(self) -> None:
+        """Закрывает все соединения пула."""
+        with self._condition:
+            connections = list(self._in_use) + list(self._available)
+            self._in_use.clear()
+            self._available.clear()
+            self._condition.notify_all()
+
+        closed = 0
+        for conn in connections:
+            try:
+                conn.close()
+                closed += 1
+            except Exception:
+                pass
+
+        logger.info("Все SQLite-соединения закрыты (%d/%d шт.).", closed, len(connections))
+
+
+def get_pool() -> ConnectionPool:
+    """Возвращает пул соединений (ленивая инициализация)."""
+    global _pool
+    if _pool is None:
+        _pool = ConnectionPool(get_db_path())
+    return _pool
 
 
 def _apply_pragmas(conn: sqlite3.Connection) -> None:
@@ -45,80 +148,19 @@ def _is_connection_valid(conn: sqlite3.Connection) -> bool:
         return False
 
 
-def get_connection() -> sqlite3.Connection:
-    """
-    Возвращает thread-local соединение.
-    Создаётся один раз на поток, переиспользуется при последующих вызовах.
-    Если соединение стало невалидным — пересоздаёт его.
-    """
-    conn = getattr(_local, "conn", None)
-
-    if conn is not None:
-        if _is_connection_valid(conn):
-            return conn
-        # Соединение умер — очищаем
-        logger.warning("SQLite-соединение стало невалидным, пересоздаю (поток %s)",
-                       threading.current_thread().name)
-        try:
-            conn.close()
-        except Exception:
-            pass
-        with _all_lock:
-            _all_connections.pop(id(conn), None)
-        _local.conn = None
-
-    # Создаём новое
-    conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
-    conn.row_factory = sqlite3.Row
-    _apply_pragmas(conn)
-    _local.conn = conn
-
-    with _all_lock:
-        _all_connections[id(conn)] = conn
-
-    logger.debug(
-        "Создано SQLite-соединение для потока %s",
-        threading.current_thread().name,
-    )
-    return _local.conn
+def get_connection() -> _PooledConnection:
+    """Возвращает соединение из пула с контекстным менеджером."""
+    return get_pool().get()
 
 
 def close_connection() -> None:
-    """Закрывает соединение текущего потока. Вызывать при завершении."""
-    conn = getattr(_local, "conn", None)
-    if conn is not None:
-        try:
-            conn.close()
-        except Exception:
-            pass
-        with _all_lock:
-            _all_connections.pop(id(conn), None)
-        _local.conn = None
-        logger.debug(
-            "SQLite-соединение закрыто для потока %s",
-            threading.current_thread().name,
-        )
+    """Закрывает все соединения пула. Оставлено для обратной совместимости."""
+    get_pool().close_all()
 
 
 def close_all_connections() -> None:
-    """
-    Закрывает все активные соединения во всех потоках.
-    Берёт слепок под блокировкой, закрывает без блокировки —
-    чтобы не держать лок при потенциально долгом .close().
-    """
-    with _all_lock:
-        connections = list(_all_connections.values())
-        _all_connections.clear()
-
-    closed = 0
-    for conn in connections:
-        try:
-            conn.close()
-            closed += 1
-        except Exception:
-            pass
-
-    logger.info("Все SQLite-соединения закрыты (%d/%d шт.).", closed, len(connections))
+    """Закрывает все соединения пула."""
+    get_pool().close_all()
 
 
 def retry_on_lock(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
@@ -150,3 +192,13 @@ def retry_on_lock(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
 
     # Недостижимо при MAX_RETRIES >= 1, но защита от MAX_RETRIES = 0
     raise sqlite3.OperationalError("retry_on_lock: MAX_RETRIES исчерпаны")
+
+__all__ = [
+    "get_connection",
+    "close_connection",
+    "close_all_connections",
+    "retry_on_lock",
+    "ConnectionPool",
+    "get_db_path",
+    "get_pool",
+]

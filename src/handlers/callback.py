@@ -2,11 +2,15 @@
 """Обработка callback-событий (нажатий на inline-кнопки)."""
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..server import Bot
 
 logger = logging.getLogger(__name__)
 
 
-def handle_callback(server, event) -> bool:
+def handle_callback(server: "Bot", event: Any) -> bool:
     """
     Обрабатывает callback-события (нажатия на inline-кнопки).
     Для MESSAGE_EVENT структура: event.object содержит
@@ -41,3 +45,6 @@ def handle_callback(server, event) -> bool:
     #     return True
 
     return True
+
+
+__all__ = ["handle_callback"]

@@ -127,3 +127,14 @@ def is_adult_content_soft(text: str) -> bool:
             return True
 
     return False
+
+
+__all__ = [
+    "is_adult_content",
+    "is_adult_content_soft",
+    "ADULT_KEYWORDS",
+    "ADULT_KEYWORDS_SOFT",
+    "ADULT_PHRASES",
+    "ADULT_RESPONSES",
+    "ADULT_REGEX_PATTERNS",
+]
