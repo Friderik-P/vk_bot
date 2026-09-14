@@ -1,8 +1,9 @@
 # vk_bot/src/services/broadcaster.py
 """Рассылка сообщений по списку пользователей VK."""
 
-import time
 import logging
+import time
+
 from vk_api.utils import get_random_id
 
 from ..constants import VK_ERROR_USER_BLOCKED

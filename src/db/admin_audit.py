@@ -25,4 +25,36 @@ def log_admin_action(admin_id: int, command: str, peer_id: int) -> None:
         logger.exception("Ошибка записи в audit log: %s", e)
 
 
-__all__ = ["log_admin_action"]
+def get_admin_audit(limit: int = 50) -> list[dict]:
+    """Возвращает последние записи audit log."""
+
+    def _get():
+        with get_connection() as conn:
+            cur = conn.execute(
+                """
+                SELECT id, admin_id, command, peer_id, created_at
+                FROM admin_audit
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [
+                {
+                    "id": row["id"],
+                    "admin_id": row["admin_id"],
+                    "command": row["command"],
+                    "peer_id": row["peer_id"],
+                    "created_at": row["created_at"],
+                }
+                for row in cur.fetchall()
+            ]
+
+    try:
+        return retry_on_lock(_get)
+    except Exception as e:
+        logger.exception("Ошибка чтения audit log: %s", e)
+        return []
+
+
+__all__ = ["log_admin_action", "get_admin_audit"]

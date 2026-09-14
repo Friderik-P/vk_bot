@@ -1,17 +1,18 @@
 # vk_bot/src/scheduler/runner.py
 """Запуск и управление фоновым планировщиком."""
 
-import threading
-import schedule
-import time
 import logging
+import threading
+import time
 
-from .jobs import job_broadcast, job_health, job_prune, get_next_health_interval
+import schedule
+
 from .constants import (
     DEFAULT_DELAY_SECONDS,
     DEFAULT_HEALTH_INTERVAL_MINUTES,
     PRUNE_TIME,
 )
+from .jobs import get_next_health_interval, job_broadcast, job_health, job_prune
 
 logger = logging.getLogger(__name__)
 

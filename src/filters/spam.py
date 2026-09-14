@@ -4,7 +4,6 @@
 Логика банов и лимитов сообщений — в db/spam.py.
 """
 
-from typing import Tuple, Optional
 import unicodedata
 
 
@@ -17,7 +16,7 @@ def _is_emoji(ch: str) -> bool:
     return "EMOJI" in name
 
 
-def analyze_message_for_spam(text: Optional[str]) -> Tuple[bool, Optional[str]]:
+def analyze_message_for_spam(text: str | None) -> tuple[bool, str | None]:
     """
     Простая эвристика для детектирования спама по тексту:
       - капс (более 70% заглавных букв в буквенных символах, длина > 10)

@@ -1,8 +1,8 @@
 # vk_bot/src/config.py
 """Чтение и валидация переменных окружения из .env."""
 
-import os
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -147,4 +147,4 @@ class _SettingsProxy:
 
 settings = _SettingsProxy()
 
-__all__ = ["Settings", "settings", "BASE_DIR", "get_settings"]
+__all__ = ["BASE_DIR", "Settings", "get_settings", "settings"]

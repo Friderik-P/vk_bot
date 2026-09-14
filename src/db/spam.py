@@ -5,15 +5,14 @@
 Текстовый анализ спама — в filters/spam.py.
 """
 
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
-
 import logging
 import sqlite3
 import threading
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
 
 from ..config import settings
-from ..constants import SPAM_CLEANUP_INTERVAL_SECONDS, SPAM_RATELIMIT_MAXLEN, SPAM_ADULT_VIOLATION_MAXLEN
+from ..constants import SPAM_ADULT_VIOLATION_MAXLEN, SPAM_CLEANUP_INTERVAL_SECONDS, SPAM_RATELIMIT_MAXLEN
 from .connection import get_connection, retry_on_lock
 
 logger = logging.getLogger(__name__)
@@ -363,9 +362,9 @@ def is_adult_banned(user_id: int) -> bool:
 
 __all__ = [
     "SpamTracker",
-    "check_ratelimit",
-    "is_spam_banned",
     "ban_for_spam",
-    "record_adult_violation",
+    "check_ratelimit",
     "is_adult_banned",
+    "is_spam_banned",
+    "record_adult_violation",
 ]

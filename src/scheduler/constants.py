@@ -2,10 +2,14 @@
 """Константы планировщика: текст рассылки и интервалы по умолчанию."""
 
 from ..constants import (
-    SCHEDULER_DELAY_SECONDS as DEFAULT_DELAY_SECONDS,
-    SCHEDULER_HEALTH_INTERVAL_MINUTES as DEFAULT_HEALTH_INTERVAL_MINUTES,
     PRUNE_KEEP_RECORDS,
     PRUNE_TIME,
+)
+from ..constants import (
+    SCHEDULER_DELAY_SECONDS as DEFAULT_DELAY_SECONDS,
+)
+from ..constants import (
+    SCHEDULER_HEALTH_INTERVAL_MINUTES as DEFAULT_HEALTH_INTERVAL_MINUTES,
 )
 
 BROADCAST_MESSAGE = "Про меня забыли((\n" "Мяф((\n" "Пообщаемся?"

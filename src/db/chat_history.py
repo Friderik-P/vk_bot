@@ -3,8 +3,8 @@
 
 import logging
 
-from .connection import get_connection, retry_on_lock
 from ..config import settings
+from .connection import get_connection, retry_on_lock
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,7 @@ def load_history(user_id: int, limit: int = 20) -> list[dict]:
     Возвращает последние `limit` сообщений пользователя
     в виде списка словарей [{"role": ..., "content": ...}, ...].
     """
-    if limit < 0:
-        limit = 0
+    limit = max(limit, 0)
 
     def _load():
         with get_connection() as conn:
@@ -120,4 +119,4 @@ def prune_all_history(keep: int = 500) -> None:
         logger.exception("Ошибка массовой очистки истории: %s", e)
 
 
-__all__ = ["save_message", "load_history", "clear_chat_history", "prune_all_history"]
+__all__ = ["clear_chat_history", "load_history", "prune_all_history", "save_message"]

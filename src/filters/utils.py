@@ -97,4 +97,4 @@ def normalize_text(text: str) -> str:
     return text
 
 
-__all__ = ["normalize_text", "deobfuscate", "transliterate_to_cyrillic"]
+__all__ = ["deobfuscate", "normalize_text", "transliterate_to_cyrillic"]

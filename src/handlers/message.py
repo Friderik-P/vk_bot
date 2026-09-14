@@ -1,30 +1,30 @@
 # vk_bot/src/handlers/message.py
 """Обработка входящих текстовых сообщений пользователя."""
 
-import random
 import logging
+import random
 import threading
 import time
 from typing import TYPE_CHECKING, Any
 
-from ..keyboards import get_main_menu_keyboard
-from ..chat import get_chat_response, clear_history
+from ..chat import clear_history, get_chat_response
 from ..config import settings
+from ..db import increment_stats, is_adult_banned, record_adult_violation
+from ..filters import ADULT_RESPONSES, CONTEXT_RESPONSES, is_adult_content, is_context_blocked
+from ..keyboards import get_main_menu_keyboard
 from ..prompts import (
-    MEOW_RESPONSE,
-    HELP_RESPONSE,
-    CONTACTS_RESPONSE,
-    RESET_RESPONSE,
-    TOO_LONG_RESPONSE,
-    NO_GIGACHAT_RESPONSE,
-    FALLBACK_RESPONSE,
-    NO_ANSWER_RESPONSE,
-    NOT_UNDERSTOOD_RESPONSE,
     ADULT_BAN_RESPONSE,
+    CONTACTS_RESPONSE,
+    FALLBACK_RESPONSE,
+    HELP_RESPONSE,
+    MEOW_RESPONSE,
+    NO_ANSWER_RESPONSE,
+    NO_GIGACHAT_RESPONSE,
+    NOT_UNDERSTOOD_RESPONSE,
+    RESET_RESPONSE,
     SIMPLE_RESPONSES,
+    TOO_LONG_RESPONSE,
 )
-from ..filters import is_adult_content, ADULT_RESPONSES, is_context_blocked, CONTEXT_RESPONSES
-from ..db import is_adult_banned, record_adult_violation, increment_stats
 from .utils import normalize_text_for_triggers
 
 if TYPE_CHECKING:
@@ -237,7 +237,7 @@ def handle_message(server: "Bot", event: Any) -> bool:
     if is_adult_banned(from_id):
         server.send_message(
             peer_id,
-            ADULT_BAN_RESPONSE,
+            ADULT_BAN_RESPONSE.format(minutes=settings.adult_ban_minutes),
             keyboard=keyboard,
         )
         logger.info("Заблокировано сообщение от user_id=%d — бан 18+ активен", from_id)
@@ -262,7 +262,7 @@ def handle_message(server: "Bot", event: Any) -> bool:
     if is_adult_content(text):
         banned = record_adult_violation(from_id)
         if banned:
-            response = ADULT_BAN_RESPONSE
+            response = ADULT_BAN_RESPONSE.format(minutes=settings.adult_ban_minutes)
         else:
             response = random.choice(ADULT_RESPONSES)
         server.send_message(peer_id, response, keyboard=keyboard)

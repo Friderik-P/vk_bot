@@ -13,7 +13,7 @@
 - **Контекстный фильтр**: запрещённые темы (наркотики, война, психотропы, химия, создатель, Сбер, ГигаЧат), ответ без бана, только лог.
 - **История диалогов**: сохранение переписки, статистика, еженедельная очистка по лимиту записей.
 - **Персистентные баны**: баны за спам и 18+ контент сохраняются в БД и выживают после рестарта бота.
-- **Админ‑панель**: команды `/health`, `/stats`, `/admins`, `/admin_add`, `/admin_del`, `/stop`, `/restart`, audit log.
+- **audit log** — все админ-команды логируются в таблицу `admin_audit` (`admin_id`, `peer_id`, время). Данные доступны через `get_admin_audit()`.
 - **Планировщик задач**: фоновый поток с расписанием (рассылка, health‑check, очистка истории).
 - **Graceful shutdown**: корректное завершение по SIGINT/SIGTERM с закрытием соединений (кросс‑платформенно).
 - **Защита от переназначения имён**: детектор атак вида "зови тебя X" + "кто создал X?".
@@ -78,11 +78,11 @@ vk_bot/
     │   ├── broadcaster.py   # Рассылка с retry при rate limit и ведением игнор-листа
     │   └── health.py        # Health-check GigaChat (авто/ручной), уведомления админов
     │
-    └── scheduler/          # Планировщик задач
-        ├── __init__.py      # from .runner import start_scheduler
-        ├── constants.py     # BROADCAST_MESSAGE, интервалы, PRUNE_TIME, PRUNE_KEEP_RECORDS
-        ├── jobs.py          # job_broadcast, job_health, job_prune
-        └── runner.py        # start_scheduler — запуск фонового потока с задачами
+└── scheduler/          # Планировщик задач
+    ├── __init__.py      # from .runner import start_scheduler
+    ├── constants.py     # BROADCAST_MESSAGE, DEFAULT_DELAY_SECONDS, DEFAULT_HEALTH_INTERVAL_MINUTES, PRUNE_TIME, PRUNE_KEEP_RECORDS
+    ├── jobs.py          # job_broadcast, job_health, job_prune
+    └── runner.py        # start_scheduler — запуск фонового потока с задачами
   │
 └── logs/                   # Логи (создаются автоматически при старте)
     ├── bot.info.log        # Информационные логи
@@ -163,7 +163,7 @@ python main.py
 | `VK_GROUP_ID` | ID группы (число) | `123456789` |
 | `GIGACHAT_AUTH_KEY` | Ключ для GigaChat (с префиксом `Bearer`) | `Bearer xxxxx...` |
 | `LOG_DIR` | Папка для логов | `logs` |
-| `DB_FILE` | Путь к файлу SQLite | `vk_bot.db` |
+| `DB_FILE` | Путь к файлу SQLite | `bot.db` |
 | `ADMIN_IDS` | Список ID администраторов (через запятую) | `000000000,000000000` |
 | `SERVER_NAME` | Имя сервера в логах | `MyVKBot` |
 
@@ -185,7 +185,7 @@ python main.py
 - Любое другое сообщение — передаётся в GigaChat, если настроен ключ.
 
 Запрос прав администратора:
-- `права администратора` или `права администраторв` — отправить запрос на получение прав админа.
+- `права администратора` или `права администраторов` — отправить запрос на получение прав админа.
 
 ### 👑 Администраторы
 
@@ -210,7 +210,7 @@ python main.py
 
 **Параметры:**
 - Сообщение по умолчанию: `"Про меня забыли((\nМяф((\nПообщаемся?"` (можно изменить в `src/scheduler/constants.py`)
-- Пауза между отправками: `0.2` сек (настраивается через `BROADCAST_DELAY_SECONDS` в `src/constants.py`)
+- Пауза между отправками: `0.2` сек (настраивается через `DEFAULT_DELAY_SECONDS` в `src/scheduler/constants.py`)
 - Максимум повторных попыток на одного пользователя: `2` (при ошибке лимита VK API код `VK_ERROR_RATE_LIMIT`)
 - Игнор-лист: пользователи с кодом ошибки `VK_ERROR_USER_BLOCKED`, `VK_ERROR_MSG_TOO_LONG`, `VK_ERROR_CHAT_NOT_FOUND` помечаются в БД как заблокированные и пропускаются в следующих рассылках
 
@@ -230,7 +230,7 @@ python main.py
 
 - **Рассылка** — каждые 24 часа (`job_broadcast`)
   - Вызывает `broadcast_hello()` с текстом из `BROADCAST_MESSAGE`.
-  - Пауза между сообщениями: `BROADCAST_DELAY_SECONDS = 0.2` сек (настраивается через `src/constants.py`).
+  - Пауза между сообщениями: `0.2` сек (настраивается через `DEFAULT_DELAY_SECONDS` в `src/scheduler/constants.py`).
   - Пропускает заблокированных пользователей.
 
 - **Health‑check GigaChat** — каждые 10 минут (`job_health`, настраивается через `health_interval_minutes`)
@@ -245,9 +245,9 @@ python main.py
 
 | Константа | Значение | Назначение |
 | --- | --- | --- |
-| `BROADCAST_MESSAGE` | `"Про меня забыли((\nМяф((\nПообщаемся?"` | Текст рассылки |
-| `BROADCAST_DELAY_SECONDS` | `0.2` | Пауза между сообщениями в рассылке |
-| `SCHEDULER_HEALTH_INTERVAL_MINUTES` | `10` | Интервал health-check |
+| `BROADCAST_MESSAGE` | `"Про меня забыли((\nМяф((\nПообщаемся?"` | Текст рассылки (настраивается в `src/scheduler/constants.py`) |
+| `DEFAULT_DELAY_SECONDS` | `0.2` | Пауза между сообщениями в рассылке (секунды) |
+| `DEFAULT_HEALTH_INTERVAL_MINUTES` | `10` | Интервал health-check (минуты, настраивается через `health_interval_minutes`) |
 | `PRUNE_KEEP_RECORDS` | `500` | Сколько записей истории оставлять на пользователя |
 | `PRUNE_TIME` | `"03:00"` | Время очистки истории |
 
@@ -259,7 +259,7 @@ python main.py
 - `COLOR_INFO` → `VkKeyboardColor.SECONDARY` (вспомогательная информация)
 - `COLOR_DANGER` → `VkKeyboardColor.NEGATIVE` (опасное/важное действие)
 
-Примечание: `VkKeyboardColor.DEFAULT` не существует в `vk_api`, поэтому используется `PRIMARY` при необходимости.
+Примечание: `VkKeyboardColor.DEFAULT` не существует в `vk_api`, дополнительных цветов не требуется — для пользовательских оттенков используйте числовые значения `color` в `VkKeyboardColor` (0–7).
 
 ## 🚦 Фильтры
 
@@ -293,7 +293,7 @@ python main.py
 
 ```bash
 pytest
-black . --check
+black src/ --check
 flake8 src/
 mypy src/
 ```
@@ -328,23 +328,91 @@ mypy src/
 - **Ошибка `RuntimeError: VK_API_TOKEN не найден в .env`** — проверьте, что файл `.env` лежит в корне проекта и содержит `VK_API_TOKEN`.
 - **Ошибка `RuntimeError: VK_GROUP_ID не задан или некорректен`** — проверьте, что в `.env` указан `VK_GROUP_ID` (число, положительное).
 - **Ошибка `vk_api.exceptions.ApiError: [901]`** — пользователь запретил сообщения от сообщества. Бот автоматически пометит его в БД и не будет отправлять ему сообщения.
-- **Ошибка `sqlite3.OperationalError: database is locked`** — при интенсивной записи может сработать блокировка. Бот автоматически повторяет запрос до 3 раз. Если ошибка persists — проверьте, что нет параллельных процессов, работающих с той же БД.
+- **Ошибка `sqlite3.OperationalError: database is locked`** — при интенсивной записи может сработать блокировка. Бот автоматически повторяет запрос до 3 раз. Если ошибка повторяется — проверьте, что нет параллельных процессов, работающих с той же БД.
 - **Ошибка импорта `ModuleNotFoundError`** — убедитесь, что активировано виртуальное окружение и установлены зависимости: `pip install -r requirements.txt`.
 - **Бот не отвечает** — проверьте логи в папке `logs/`, убедитесь, что Long Poll запущен и токен группы действителен.
 - **Баны не сбрасываются после рестарта** — это фича: баны за спам и 18+ контент теперь персистентны (хранятся в БД). Для сброса удалите записи из таблиц `spam_bans` / `adult_bans`.
 - **На Windows не работают сигналы** — бот корректно обрабатывает `Ctrl+C` (SIGINT), SIGTERM игнорируется (нет в Windows).
+
+## 🪟 Деплой на Windows (Production)
+
+### 1. Установка как служба (NSSM)
+
+Скачайте [NSSM](https://nssm.cc/download) и добавьте в PATH. Затем:
+
+```cmd
+scripts\install_service.bat
+```
+
+Служба установится как `VKBot` с автозапуском. Управление:
+
+```cmd
+net start VKBot       :: запуск
+net stop VKBot        :: остановка
+sc query VKBot        :: статус
+nssm edit VKBot       :: изменить параметры
+nssm remove VKBot confirm :: удалить
+```
+
+Логи службы: `logs\service.stdout.log`, `logs\service.stderr.log`
+
+### 2. Автоматические бэкапы и Health-check (Планировщик заданий)
+
+Запустите **от имени администратора**:
+
+```cmd
+scripts\register_tasks.bat
+```
+
+Создаст две задачи:
+- `VKBot_Backup` — ежедневно в 03:00 (сохраняет `backups\bot_YYYYMMDD_HHMMSS.bak`, хранит 14 последних)
+- `VKBot_HealthCheck` — каждые 5 минут (проверяет БД и свежесть логов)
+
+Проверка: `taskschd.msc` → Библиотека планировщика заданий.
+
+### 3. Локальная разработка (скрипты в `scripts\`)
+
+| Скрипт | Назначение |
+|--------|------------|
+| `run.bat` | Запуск бота в консоли (Ctrl+C для остановки) |
+| `test.bat` | Запуск всех тестов (`pytest -v`) |
+| `lint.bat` | Проверка: flake8 + mypy + black --check |
+| `format.bat` | Автоформатирование (black) |
+| `backup.bat` | Ручной бэкап БД в `backups\` |
+| `health_check.bat` | Проверка БД и свежести логов (exit code 0=OK) |
+
+Примеры:
+```cmd
+scripts\run.bat          # запуск в консоли
+scripts\test.bat         # тесты
+scripts\lint.bat         # линтинг
+scripts\format.bat       # автоформат
+scripts\backup.bat       # бэкап сейчас
+scripts\health_check.bat # проверка здоровья
+```
+
+### 4. Логи и ротация
+
+Настроено в коде (`RotatingFileHandler`):
+- `logs\bot.info.log` — 5 МБ × 3 файла
+- `logs\bot.error.log` — 2 МБ × 5 файлов
+- `logs\service.stdout.log` / `service.stderr.log` — NSSM (10 МБ × 1)
+
+Дополнительная очистка старых логов — вручную или через Планировщик заданий.
+
+---
 
 ## 🤝 Contributing
 
 1. Создайте форк репозитория.
 2. Создайте ветку с названием фичи: `git checkout -b feature/имя-фичи`.
 3. Внесите изменения и убедитесь, что код проходит проверки:
-   ```bash
-   black . --check
-   flake8 src/
-   mypy src/
-   pytest
-   ```
+```bash
+pytest
+black src/ --check
+flake8 src/
+mypy src/
+```
 4. Отправьте пул-реквест с описанием изменений. Используйте шаблон из `.github/pull_request_template.md`.
 5. Для багов и предложений используйте шаблоны Issues из `.github/ISSUE_TEMPLATE/`.
 

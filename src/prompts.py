@@ -117,7 +117,7 @@ NO_ANSWER_RESPONSE: Final[str] = "Кажется, нейросеть не отв
 SPAM_RESPONSE: Final[str] = "Мяу... не пиши капсом и не спамь эмодзи. Я пока промолчу 🐱"
 RATE_LIMIT_RESPONSE: Final[str] = "Слишком много сообщений 🐱"
 NOT_UNDERSTOOD_RESPONSE: Final[str] = "Я не понял: «{text}». Попробуй кнопку «Мяу» или «Помощь»."
-ADULT_BAN_RESPONSE: Final[str] = "Мяу… ты забанен на 5 минут за 18+ контент. Отдыхай! 🐱"
+ADULT_BAN_RESPONSE: Final[str] = "Мяу… ты забанен на {minutes} минут за 18+ контент. Отдыхай! 🐱"
 SIMPLE_RESPONSES: Final[tuple[str, ...]] = (
     "Мяу! Расскажи ещё 🐱",
     "Интересно… продолжай! 🐾",
@@ -133,22 +133,22 @@ def build_system_prompt() -> str:
 
 
 __all__ = [
-    "MODEL",
-    "build_system_prompt",
-    "SILENT_RESPONSES",
-    "SENSITIVE_TRIGGERS",
-    "CREATOR_REVEAL_PHRASES",
-    "MAX_TOKENS",
-    "TEMPERATURE",
-    "MEOW_RESPONSE",
-    "HELP_RESPONSE",
-    "CONTACTS_RESPONSE",
-    "RESET_RESPONSE",
-    "TOO_LONG_RESPONSE",
-    "NO_GIGACHAT_RESPONSE",
-    "FALLBACK_RESPONSE",
-    "NO_ANSWER_RESPONSE",
-    "NOT_UNDERSTOOD_RESPONSE",
     "ADULT_BAN_RESPONSE",
+    "CONTACTS_RESPONSE",
+    "CREATOR_REVEAL_PHRASES",
+    "FALLBACK_RESPONSE",
+    "HELP_RESPONSE",
+    "MAX_TOKENS",
+    "MEOW_RESPONSE",
+    "MODEL",
+    "NOT_UNDERSTOOD_RESPONSE",
+    "NO_ANSWER_RESPONSE",
+    "NO_GIGACHAT_RESPONSE",
+    "RESET_RESPONSE",
+    "SENSITIVE_TRIGGERS",
+    "SILENT_RESPONSES",
     "SIMPLE_RESPONSES",
+    "TEMPERATURE",
+    "TOO_LONG_RESPONSE",
+    "build_system_prompt",
 ]

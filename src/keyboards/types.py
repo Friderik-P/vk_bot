@@ -7,4 +7,4 @@ COLOR_ACTION = VkKeyboardColor.POSITIVE  # Основное действие (я
 COLOR_INFO = VkKeyboardColor.SECONDARY  # Вспомогательная информация (серое)
 COLOR_DANGER = VkKeyboardColor.NEGATIVE  # Опасное/важное действие (красное)
 
-__all__ = ["COLOR_ACTION", "COLOR_INFO", "COLOR_DANGER"]
+__all__ = ["COLOR_ACTION", "COLOR_DANGER", "COLOR_INFO"]

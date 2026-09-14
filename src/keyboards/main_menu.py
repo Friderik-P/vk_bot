@@ -2,7 +2,8 @@
 """Главное меню бота (обычная клавиатура)."""
 
 from vk_api.keyboard import VkKeyboard
-from .types import COLOR_ACTION, COLOR_INFO, COLOR_DANGER
+
+from .types import COLOR_ACTION, COLOR_DANGER, COLOR_INFO
 
 
 def get_main_menu_keyboard():

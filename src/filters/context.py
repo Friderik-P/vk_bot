@@ -63,4 +63,4 @@ def is_context_blocked(text: str) -> bool:
     return False
 
 
-__all__ = ["is_context_blocked", "CONTEXT_PHRASES", "CONTEXT_RESPONSES"]
+__all__ = ["CONTEXT_PHRASES", "CONTEXT_RESPONSES", "is_context_blocked"]

@@ -6,15 +6,16 @@ import random
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ..config import settings
 from ..constants import (
     DB_CONNECTION_POOL_MAX_SIZE,
-    DB_RETRY_MAX_ATTEMPTS,
     DB_RETRY_BASE_DELAY,
+    DB_RETRY_MAX_ATTEMPTS,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,13 @@ class _PooledConnection(AbstractContextManager):
                 pass
         self.pool.put(self.conn)
 
+    def close(self) -> None:
+        """Возвращает соединение в пул, а не закрывает его."""
+        self.pool.put(self.conn)
+
     def __getattr__(self, name: str) -> Any:
+        if name == "close":
+            return self.close
         return getattr(self.conn, name)
 
 
@@ -107,6 +114,7 @@ class ConnectionPool:
             connections = list(self._in_use) + list(self._available)
             self._in_use.clear()
             self._available.clear()
+            self._created = 0
             self._condition.notify_all()
 
         closed = 0
@@ -189,11 +197,11 @@ def retry_on_lock(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
 
 
 __all__ = [
-    "get_connection",
-    "close_connection",
-    "close_all_connections",
-    "retry_on_lock",
     "ConnectionPool",
+    "close_all_connections",
+    "close_connection",
+    "get_connection",
     "get_db_path",
     "get_pool",
+    "retry_on_lock",
 ]

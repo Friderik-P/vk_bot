@@ -6,8 +6,8 @@ Health-check для GigaChat: автоматическая и ручная пр�
 
 import logging
 import threading
+from collections.abc import Callable
 from datetime import datetime
-from typing import Optional, Tuple, Callable, List
 
 import httpx
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Ротирующие короткие промпты для health-check, чтобы избежать
 # кэширования/детекции идентичных запросов на стороне GigaChat.
-HEALTH_CHECK_PROMPTS: Tuple[str, ...] = (
+HEALTH_CHECK_PROMPTS: tuple[str, ...] = (
     "ping",
     "ok",
     "status",
@@ -33,7 +33,7 @@ HEALTH_CHECK_PROMPTS: Tuple[str, ...] = (
 
 _lock = threading.Lock()
 _last_status: str = "unknown"
-_last_error_msg: Optional[str] = None
+_last_error_msg: str | None = None
 _prompt_index: int = 0
 _consecutive_failures: int = 0
 
@@ -70,7 +70,7 @@ def _record_failure() -> int:
     return _get_backoff_interval_minutes()
 
 
-def _ping_gigachat(chat_client) -> Tuple[bool, Optional[str]]:
+def _ping_gigachat(chat_client) -> tuple[bool, str | None]:
     """
     Отправляет минимальный запрос к GigaChat.
     Таймаут обеспечивается клиентом (httpx), ручной поток не нужен.
@@ -116,8 +116,8 @@ def _ping_gigachat(chat_client) -> Tuple[bool, Optional[str]]:
 def run_health_check(
     chat_client,
     vk_api,
-    admin_ids: List[int],
-    send_func: Optional[Callable[[int, str], None]] = None,
+    admin_ids: list[int],
+    send_func: Callable[[int, str], None] | None = None,
 ) -> int:
     """
     Запускает автоматическую проверку GigaChat по расписанию.
@@ -184,4 +184,4 @@ def check_gigachat_manual(chat_client) -> str:
         return f"❌ GigaChat недоступен (проверка в {now_time})\n" f"Ошибка: {error_msg or 'Неизвестная ошибка'}"
 
 
-__all__ = ["run_health_check", "check_gigachat_manual"]
+__all__ = ["check_gigachat_manual", "run_health_check"]

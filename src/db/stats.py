@@ -15,7 +15,10 @@ def increment_stats(total: int = 0, llm: int = 0, errors: int = 0) -> None:
 
     def _inc():
         with get_connection() as conn:
-            cur = conn.execute(
+            conn.execute(
+                "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) " "VALUES (1, 0, 0, 0)"
+            )
+            conn.execute(
                 """
                 UPDATE stats
                 SET
@@ -27,15 +30,6 @@ def increment_stats(total: int = 0, llm: int = 0, errors: int = 0) -> None:
                 (total, llm, errors),
             )
             conn.commit()
-
-            if cur.rowcount == 0:
-                # Строки id=1 нет — создаём
-                logger.warning("stats: строка id=1 не найдена, пересоздаю")
-                conn.execute(
-                    "INSERT OR IGNORE INTO stats (id, total_messages, llm_messages, errors) " "VALUES (1, ?, ?, ?)",
-                    (total, llm, errors),
-                )
-                conn.commit()
 
             logger.debug(
                 "Статистика обновлена: total=%d, llm=%d, errors=%d",
@@ -72,4 +66,4 @@ def get_stats() -> dict:
         return {"total_messages": 0, "llm_messages": 0, "errors": 0}
 
 
-__all__ = ["increment_stats", "get_stats"]
+__all__ = ["get_stats", "increment_stats"]

@@ -2,10 +2,10 @@
 """Утилиты для уведомления администраторов."""
 
 import logging
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
-from vk_api.utils import get_random_id
 from vk_api.exceptions import ApiError
+from vk_api.utils import get_random_id
 
 from ..constants import VK_ERROR_USER_BLOCKED
 
@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 def notify_admins(
     vk_api,
-    admin_ids: List[int],
+    admin_ids: list[int],
     message: str,
-    send_func: Optional[Callable[[int, str], None]] = None,
+    send_func: Callable[[int, str], None] | None = None,
 ) -> None:
     """
     Отправляет сообщение всем администраторам.

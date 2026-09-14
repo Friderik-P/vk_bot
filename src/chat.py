@@ -13,23 +13,23 @@ import threading
 import httpx
 from gigachat import GigaChat
 from gigachat.exceptions import (
-    RateLimitError,
     AuthenticationError,
     GigaChatException,
+    RateLimitError,
 )
 
 from .config import settings
 from .constants import GIGACHAT_API_PERS
+from .db.chat_history import clear_chat_history, load_history, save_message
 from .prompts import (
-    MODEL,
-    build_system_prompt,
-    SILENT_RESPONSES,
-    SENSITIVE_TRIGGERS,
     CREATOR_REVEAL_PHRASES,
     MAX_TOKENS,
+    MODEL,
+    SENSITIVE_TRIGGERS,
+    SILENT_RESPONSES,
     TEMPERATURE,
+    build_system_prompt,
 )
-from .db.chat_history import save_message, load_history, clear_chat_history
 
 logger = logging.getLogger(__name__)
 
@@ -182,4 +182,4 @@ def clear_history(user_id: int) -> None:
     clear_chat_history(user_id)
 
 
-__all__ = ["GigaChatService", "get_chat_response", "clear_history", "get_gigachat_client"]
+__all__ = ["GigaChatService", "clear_history", "get_chat_response", "get_gigachat_client"]

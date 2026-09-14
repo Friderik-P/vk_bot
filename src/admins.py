@@ -3,7 +3,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -74,8 +73,8 @@ class AdminStore:
         return True
 
 
-_store: Optional[AdminStore] = None
-_yaml_path: Optional[Path] = None
+_store: AdminStore | None = None
+_yaml_path: Path | None = None
 
 
 def _get_store() -> AdminStore:
@@ -103,4 +102,4 @@ def remove_admin(user_id: int) -> bool:
     return _get_store().remove(user_id)
 
 
-__all__ = ["AdminStore", "init_admins_yaml", "get_admins", "add_admin", "remove_admin"]
+__all__ = ["AdminStore", "add_admin", "get_admins", "init_admins_yaml", "remove_admin"]

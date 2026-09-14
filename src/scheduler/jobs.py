@@ -78,4 +78,4 @@ def reset_health_interval() -> None:
     _next_health_interval_minutes = None
 
 
-__all__ = ["job_broadcast", "job_health", "job_prune", "get_next_health_interval", "reset_health_interval"]
+__all__ = ["get_next_health_interval", "job_broadcast", "job_health", "job_prune", "reset_health_interval"]

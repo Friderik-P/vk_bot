@@ -8,44 +8,44 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import requests
 import vk_api
-from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
-from vk_api.utils import get_random_id
+from vk_api.bot_longpoll import VkBotEventType, VkBotLongPoll
 from vk_api.exceptions import ApiError
+from vk_api.utils import get_random_id
 
+from .admins import add_admin, get_admins, remove_admin
 from .config import settings
 from .constants import (
-    VK_ERROR_USER_BLOCKED,
     SCHEDULER_DELAY_SECONDS,
     SCHEDULER_HEALTH_INTERVAL_MINUTES,
+    VK_ERROR_USER_BLOCKED,
 )
 from .db import (
-    load_peer_ids,
     add_peer_id,
-    mark_user_blocked,
-    check_ratelimit,
-    is_spam_banned,
     ban_for_spam,
+    check_ratelimit,
     get_stats,
     increment_stats,
+    is_spam_banned,
+    load_peer_ids,
     log_admin_action,
+    mark_user_blocked,
 )
 from .db.connection import close_all_connections
 from .filters.spam import analyze_message_for_spam
-from .keyboards.main_menu import get_main_menu_keyboard
+from .handlers import handle_callback, handle_message
 from .keyboards.inline import get_admin_help_inline_keyboard
+from .keyboards.main_menu import get_main_menu_keyboard
 from .prompts import (
+    HELP_RESPONSE,
+    NOT_UNDERSTOOD_RESPONSE,
     RATE_LIMIT_RESPONSE,
     SPAM_RESPONSE,
-    NOT_UNDERSTOOD_RESPONSE,
-    HELP_RESPONSE,
 )
 from .services.health import check_gigachat_manual
-from .admins import get_admins, add_admin, remove_admin
-from .handlers import handle_message, handle_callback
 from .utils.notify import notify_admins
 
 logger = logging.getLogger(__name__)
@@ -88,13 +88,13 @@ class Bot(Protocol):
     def request_restart(self) -> None: ...
 
     @property
-    def shutdown_event(self) -> Optional[threading.Event]: ...
+    def shutdown_event(self) -> threading.Event | None: ...
 
 
 class AdminCommandHandler:
     """Обработчик админ-команд."""
 
-    def __init__(self, bot: Bot, shutdown_event: Optional[threading.Event] = None) -> None:
+    def __init__(self, bot: Bot, shutdown_event: threading.Event | None = None) -> None:
         self.bot = bot
         self._shutdown_event = shutdown_event
 
@@ -431,7 +431,7 @@ class Server:
         api_token: str,
         group_id: int,
         server_name: str = "Empty",
-        shutdown_event: Optional[threading.Event] = None,
+        shutdown_event: threading.Event | None = None,
     ) -> None:
         self.server_name = server_name
         self.api_token = api_token
@@ -461,7 +461,7 @@ class Server:
         )
 
     @property
-    def shutdown_event(self) -> Optional[threading.Event]:
+    def shutdown_event(self) -> threading.Event | None:
         return self._shutdown_event
 
     def request_restart(self) -> None:
@@ -480,7 +480,7 @@ class Server:
         return set(self.peer_ids)
 
     def send_message(self, peer_id: int | None, message: str, keyboard: str | None = None) -> None:
-        if not peer_id:
+        if peer_id is None:
             return
         try:
             params = {
@@ -612,7 +612,7 @@ class Server:
 
     def _handle_admin_request(self, from_id: int, peer_id: int, text: str) -> bool:
         """Обрабатывает запрос прав администратора. Возвращает True, если обработано."""
-        admin_request_phrases = ("права администратора", "права администраторв")
+        admin_request_phrases = ("права администратора", "права администраторов")
         if from_id in get_admins() or text.lower() not in admin_request_phrases:
             return False
 
@@ -654,4 +654,4 @@ class Server:
         return True
 
 
-__all__ = ["Server", "Bot", "AdminCommandHandler", "MessageRouter"]
+__all__ = ["AdminCommandHandler", "Bot", "MessageRouter", "Server"]

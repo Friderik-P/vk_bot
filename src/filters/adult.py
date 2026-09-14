@@ -1,8 +1,8 @@
 # vk_bot/src/filters/adult.py
 """Фильтр 18+ контента. Срабатывает до запроса к LLM — экономит токены."""
 
-import re
 import logging
+import re
 from pathlib import Path
 from typing import Final
 
@@ -111,10 +111,10 @@ def is_adult_content(text: str) -> bool:
 
 
 __all__ = [
-    "is_adult_content",
     "ADULT_KEYWORDS",
     "ADULT_KEYWORDS_SOFT",
     "ADULT_PHRASES",
-    "ADULT_RESPONSES",
     "ADULT_REGEX_PATTERNS",
+    "ADULT_RESPONSES",
+    "is_adult_content",
 ]
